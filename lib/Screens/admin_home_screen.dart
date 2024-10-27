@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:grocerygo/Screens/admin_order_page.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:grocerygo/Screens/admin_category_page.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -17,14 +18,25 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _selectedIndex = 0;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Define the list of pages; index 0 is now the inventory page itself.
   final List<Widget> _pages = [];
+  List<String> _categories = []; // List to hold category names (document IDs)
+  String? _selectedCategory; // Variable to hold the selected category
 
   @override
   void initState() {
     super.initState();
-    _pages.add(_buildInventoryPage()); // Setting the inventory page at index 0
-    _pages.add(AdminOrderPage()); // Placeholder for orders or other admin pages
+    _fetchCategories(); // Fetch categories from Firestore on initialization
+    _pages.add(_buildInventoryPage());
+    _pages.add(AdminOrderPage());
+    _pages.add(AdminCategoryScreen()); // Placeholder for future pages
+  }
+
+  void _fetchCategories() async {
+    // Fetch categories from Firestore (assuming each category is a document ID)
+    QuerySnapshot snapshot = await _firestore.collection('inventory').get();
+    setState(() {
+      _categories = snapshot.docs.map((doc) => doc.id).toList();
+    });
   }
 
   void _onItemTapped(int index) {
@@ -44,52 +56,87 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Add New Item'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(hintText: 'Item Name'),
-                onChanged: (value) {
-                  itemName = value;
-                },
-              ),
-              TextField(
-                decoration: const InputDecoration(hintText: 'Price'),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  price = value;
-                },
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('In Stock'),
-                  Switch(
-                    value: stock,
-                    onChanged: (value) {
-                      setState(() {
-                        stock = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final ImagePicker picker = ImagePicker();
-                  image = await picker.pickImage(source: ImageSource.gallery);
-                },
-                child: const Text('Upload Image'),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  decoration:
+                      const InputDecoration(hintText: 'Select Category'),
+                  value: _selectedCategory,
+                  items: _categories.map((category) {
+                    return DropdownMenuItem(
+                      value: category,
+                      child: Text(category),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedCategory = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  decoration: const InputDecoration(hintText: 'Item Name'),
+                  onChanged: (value) {
+                    itemName = value;
+                  },
+                ),
+                TextField(
+                  decoration: const InputDecoration(hintText: 'Price'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    price = value;
+                  },
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('In Stock'),
+                    Switch(
+                      value: stock,
+                      onChanged: (value) {
+                        setState(() {
+                          stock = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      backgroundColor: const Color.fromARGB(255, 222, 186, 248),
+                      foregroundColor: Colors.white),
+                  onPressed: () async {
+                    final ImagePicker picker = ImagePicker();
+                    image = await picker.pickImage(source: ImageSource.gallery);
+                  },
+                  child: const Text('Upload Image'),
+                ),
+              ],
+            ),
           ),
           actions: [
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 222, 186, 248),
+                  foregroundColor: Colors.white),
               onPressed: () async {
-                if (itemName.isNotEmpty && price.isNotEmpty && image != null) {
+                if (itemName.isNotEmpty &&
+                    price.isNotEmpty &&
+                    image != null &&
+                    _selectedCategory != null) {
                   String imageUrl = await _uploadImageToStorage(image!);
 
-                  await _firestore.collection('inventory').add({
+                  // Add item under the selected category
+                  await _firestore
+                      .collection('inventory')
+                      .doc(_selectedCategory)
+                      .collection('items')
+                      .add({
                     'name': itemName,
                     'price': price,
                     'stock': stock,
@@ -109,14 +156,117 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   Future<String> _uploadImageToStorage(XFile image) async {
-    // Assuming you have Firebase Storage setup
-    // Upload the image to Firebase Storage and get the URL
     final ref = FirebaseStorage.instance.ref().child('items/${image.name}');
     await ref.putFile(File(image.path));
     return await ref.getDownloadURL();
   }
 
-  // Build the inventory page as a separate method
+  Future<void> _editItemDialog(DocumentSnapshot doc, String category) async {
+    String itemName = doc['name'];
+    String price = doc['price'];
+    bool stock = doc['stock'];
+    XFile? image;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Edit Item'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  decoration: const InputDecoration(hintText: 'Item Name'),
+                  controller: TextEditingController(text: itemName),
+                  onChanged: (value) {
+                    itemName = value;
+                  },
+                ),
+                TextField(
+                  decoration: const InputDecoration(hintText: 'Price'),
+                  keyboardType: TextInputType.number,
+                  controller: TextEditingController(text: price),
+                  onChanged: (value) {
+                    price = value;
+                  },
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('In Stock'),
+                    Switch(
+                      value: stock,
+                      onChanged: (value) {
+                        setState(() {
+                          stock = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      backgroundColor: const Color.fromARGB(255, 222, 186, 248),
+                      foregroundColor: Colors.white),
+                  onPressed: () async {
+                    final ImagePicker picker = ImagePicker();
+                    image = await picker.pickImage(source: ImageSource.gallery);
+                  },
+                  child: const Text('Upload New Image'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red, foregroundColor: Colors.white),
+              onPressed: () async {
+                await _firestore
+                    .collection('inventory')
+                    .doc(category)
+                    .collection('items')
+                    .doc(doc.id)
+                    .delete();
+                Navigator.of(context).pop();
+              },
+              child: const Text('Delete'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 222, 186, 248),
+                  foregroundColor: Colors.white),
+              onPressed: () async {
+                String? imageUrl = doc['imageUrl'];
+                if (image != null) {
+                  imageUrl = await _uploadImageToStorage(image!);
+                }
+
+                await _firestore
+                    .collection('inventory')
+                    .doc(category)
+                    .collection('items')
+                    .doc(doc.id)
+                    .update({
+                  'name': itemName,
+                  'price': price,
+                  'stock': stock,
+                  'imageUrl': imageUrl,
+                });
+
+                Navigator.of(context).pop();
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildInventoryPage() {
     return StreamBuilder(
       stream: _firestore.collection('inventory').snapshots(),
@@ -126,19 +276,50 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         }
         if (snapshot.data!.docs.isEmpty) {
           return const Center(
-            child: Text('No items available'),
+            child: Text('No categories available'),
           );
         }
 
         return ListView(
-          children: snapshot.data!.docs.map((doc) {
-            return Card(
-              child: ListTile(
-                leading: Image.network(doc['imageUrl']),
-                title: Text(doc['name']),
-                subtitle: Text('Price: ${doc['price']}'),
-                trailing: Text(doc['stock'] ? 'In Stock' : 'Out of Stock'),
-              ),
+          children: snapshot.data!.docs.map((categoryDoc) {
+            return ExpansionTile(
+              title: Text(categoryDoc.id),
+              children: [
+                StreamBuilder(
+                  stream: _firestore
+                      .collection('inventory')
+                      .doc(categoryDoc.id)
+                      .collection('items')
+                      .snapshots(),
+                  builder:
+                      (context, AsyncSnapshot<QuerySnapshot> itemSnapshot) {
+                    if (!itemSnapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (itemSnapshot.data!.docs.isEmpty) {
+                      return const Center(
+                        child: Text('No items in this category'),
+                      );
+                    }
+
+                    return Column(
+                      children: itemSnapshot.data!.docs.map((itemDoc) {
+                        return Card(
+                          child: ListTile(
+                            leading: Image.network(itemDoc['imageUrl']),
+                            title: Text(itemDoc['name']),
+                            subtitle: Text('Price: ${itemDoc['price']}'),
+                            trailing: Text(
+                                itemDoc['stock'] ? 'In Stock' : 'Out of Stock'),
+                            onTap: () => _editItemDialog(itemDoc,
+                                categoryDoc.id), // Tap to edit the item
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+              ],
             );
           }).toList(),
         );
@@ -152,7 +333,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       appBar: AppBar(
         title: const Text('Admin Home Screen'),
       ),
-      body: _pages[_selectedIndex], // Show the selected page
+      body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
@@ -163,17 +344,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             icon: Icon(Icons.list),
             label: 'Orders',
           ),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.category), label: 'Categories'),
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
       ),
-      floatingActionButton:
-          _selectedIndex == 0 // Only show FAB on the Inventory page
-              ? FloatingActionButton(
-                  onPressed: _addItemDialog,
-                  child: const Icon(Icons.add),
-                )
-              : null, // No FAB for other tabs
+      floatingActionButton: _selectedIndex == 0
+          ? FloatingActionButton(
+              onPressed: _addItemDialog,
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

@@ -179,11 +179,14 @@ class HomeView extends GetView<HomeController> {
                             'Categories 😋',
                             style: theme.textTheme.titleSmall,
                           ),
-                          Text(
-                            'See all',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: theme.primaryColor,
-                              fontWeight: FontWeight.normal,
+                          GestureDetector(
+                            onTap: () => Get.toNamed('/category'),
+                            child: Text(
+                              'See all',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: theme.primaryColor,
+                                fontWeight: FontWeight.normal,
+                              ),
                             ),
                           ),
                         ],

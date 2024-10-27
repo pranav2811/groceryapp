@@ -18,11 +18,16 @@ class ProfileController extends GetxController {
 
   Future<void> fetchUserData() async {
     if (currentUser.value != null) {
-      DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
-          .collection('users')
-          .doc(currentUser.value!.uid)
-          .get();
-      userData.value = snapshot.data() as Map<String, dynamic>;
+      try {
+        DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+            .collection('users')
+            .doc(currentUser.value!.uid)
+            .get();
+        userData.value = snapshot.data() as Map<String, dynamic>;
+        print("Fetched user data: ${userData.value}"); // Debug print
+      } catch (e) {
+        print("Error fetching user data: $e"); // Handle potential errors
+      }
     }
   }
 

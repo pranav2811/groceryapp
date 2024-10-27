@@ -27,58 +27,57 @@ class ProfileView extends GetView<ProfileController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // User Info Card
-                Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.0),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        CircleAvatar(
-                          radius: 30.r,
-                          backgroundColor: theme.primaryColorDark,
-                          child: ClipOval(
-                            child: Align(
-                              alignment: Alignment.bottomCenter,
-                              child: Text(
-                                controller.userData['name'] != null
-                                    ? controller.userData['name'][0]
-                                        .toUpperCase()
-                                    : 'U',
-                                style: TextStyle(
-                                  fontSize: 24.sp,
-                                  color: theme.primaryColorDark,
-                                ),
+                // User Info Card stretched across the screen
+                SizedBox(
+                  width: double.infinity,
+                  child: Card(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16.0),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          // Circle with Initial Letter
+                          CircleAvatar(
+                            radius: 30.r,
+                            backgroundColor: theme.primaryColorDark,
+                            child: Text(
+                              controller.userData['name'] != null
+                                  ? controller.userData['name'][0].toUpperCase()
+                                  : 'U',
+                              style: TextStyle(
+                                fontSize: 24.sp,
+                                color: Colors.black,
                               ),
                             ),
                           ),
-                        ),
-                        SizedBox(height: 10.h),
-                        Text(
-                          controller.userData['name'] ?? 'User',
-                          style: theme.textTheme.headlineMedium,
-                        ),
-                        SizedBox(height: 5.h),
-                        Text(
-                          controller.currentUser.value?.email ?? '',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        SizedBox(height: 10.h),
-                        TextButton(
-                          onPressed: () {
-                            // Navigate to user's activity screen
-                          },
-                          child: Text(
-                            'View activity',
-                            style: TextStyle(
-                              color: theme.primaryColor,
-                              fontSize: 14.sp,
+                          SizedBox(height: 10.h),
+                          Text(
+                            controller.userData['name'] ?? 'User',
+                            style: theme.textTheme.headlineMedium,
+                          ),
+                          SizedBox(height: 5.h),
+                          // Display the email fetched from Firestore
+                          Text(
+                            controller.userData['email'] ?? 'No email found',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          SizedBox(height: 10.h),
+                          TextButton(
+                            onPressed: () {
+                              // Navigate to user's activity screen
+                            },
+                            child: Text(
+                              'View activity',
+                              style: TextStyle(
+                                color: theme.primaryColor,
+                                fontSize: 14.sp,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -114,7 +113,6 @@ class ProfileView extends GetView<ProfileController> {
                 ),
                 _buildListTile('Your orders', Icons.shopping_bag),
                 _buildListTile('Favorite orders', Icons.favorite),
-                _buildListTile('Order on train', Icons.train),
 
                 // Add some space before the logout button
                 SizedBox(height: 40.h),
