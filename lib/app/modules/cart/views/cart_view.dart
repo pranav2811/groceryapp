@@ -75,7 +75,9 @@ class CartView extends GetView<CartController> {
                 padding: EdgeInsets.symmetric(horizontal: 24.w),
                 child: CustomButton(
                   text: 'Purchase Now',
-                  onPressed: () => controller.onPurchaseNowPressed(),
+                  onPressed: () => controller.onPurchaseNowPressed(
+                    context,
+                  ),
                   fontSize: 16.sp,
                   radius: 50.r,
                   verticalPadding: 16.h,

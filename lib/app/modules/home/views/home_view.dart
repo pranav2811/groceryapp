@@ -132,7 +132,7 @@ class HomeView extends GetView<HomeController> {
                       child: CustomFormField(
                         backgroundColor: theme.primaryColorDark,
                         textSize: 14.sp,
-                        hint: 'Search category',
+                        hint: 'Search Product',
                         hintFontSize: 14.sp,
                         hintColor: theme.hintColor,
                         maxLines: 1,
