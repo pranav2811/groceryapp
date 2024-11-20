@@ -19,15 +19,24 @@ class ProfileController extends GetxController {
   Future<void> fetchUserData() async {
     if (currentUser.value != null) {
       try {
+        print("Fetching user data for UID: ${currentUser.value!.uid}");
         DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
             .collection('users')
             .doc(currentUser.value!.uid)
             .get();
-        userData.value = snapshot.data() as Map<String, dynamic>;
-        print("Fetched user data: ${userData.value}"); // Debug print
+
+        if (snapshot.exists) {
+          userData.value =
+              snapshot.data() ?? {}; // Fetch data if document exists
+          print("Fetched user data: ${userData.value}");
+        } else {
+          print("User document does not exist in Firestore.");
+        }
       } catch (e) {
-        print("Error fetching user data: $e"); // Handle potential errors
+        print("Error fetching user data: $e"); // Debug error
       }
+    } else {
+      print("No current user found.");
     }
   }
 

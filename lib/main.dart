@@ -13,17 +13,13 @@ import 'config/translations/localization_service.dart';
 import 'package:grocerygo/Screens/login_page.dart'; // Assuming this is your login page
 
 Future<void> main() async {
-  // Wait for bindings
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
   await Firebase.initializeApp();
   FirebaseAppCheck.instance.activate();
 
-  // Initialize shared preferences
   await MySharedPref.init();
 
-  // Check if user is logged in
   User? currentUser = FirebaseAuth.instance.currentUser;
 
   runApp(
@@ -38,16 +34,12 @@ Future<void> main() async {
           title: "Grocery App",
           useInheritedMediaQuery: true,
           debugShowCheckedModeBanner: false,
-          theme: MyTheme.getThemeData(
-              isLight: MySharedPref
-                  .getThemeIsLight()), // Use theme from shared preferences
+          theme: MyTheme.getThemeData(isLight: MySharedPref.getThemeIsLight()),
           home: currentUser != null
-              ? RoleBasedRedirector(
-                  user: currentUser) // Custom logic for role-based redirection
-              : const LoginScreen(), // Otherwise, load the login screen directly
-          getPages: AppPages.routes, // Define the app pages for GetX navigation
-          locale: MySharedPref
-              .getCurrentLocal(), // Set locale based on shared preferences
+              ? RoleBasedRedirector(user: currentUser)
+              : const LoginScreen(),
+          getPages: AppPages.routes,
+          locale: MySharedPref.getCurrentLocal(),
           translations:
               LocalizationService.getInstance(), // Set up localization
         );
@@ -63,16 +55,13 @@ class RoleBasedRedirector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Firestore query to check user role
     return FutureBuilder<DocumentSnapshot>(
       future:
           FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(
-                child:
-                    CircularProgressIndicator()), // Show loading while fetching user role
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -85,25 +74,20 @@ class RoleBasedRedirector extends StatelessWidget {
         if (!snapshot.hasData ||
             snapshot.data == null ||
             !snapshot.data!.exists) {
-          // If user data doesn't exist in Firestore, log them out and show login screen
           FirebaseAuth.instance.signOut();
           return const LoginScreen();
         }
 
         final userData = snapshot.data!.data() as Map<String, dynamic>;
 
-        // Redirect based on user role
         if (userData['role'] == 'admin') {
-          // If user is admin, redirect to Admin Home Screen
           return const AdminHomeScreen();
         } else {
-          // If user is customer, redirect to the base page (GetX route)
           Future.delayed(Duration.zero, () {
-            Get.offAllNamed(Routes.base); // Replace with your base route
+            Get.offAllNamed(Routes.base);
           });
           return const Scaffold(
-            body: Center(
-                child: CircularProgressIndicator()), // Loading while navigating
+            body: Center(child: CircularProgressIndicator()),
           );
         }
       },

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get/get_core/src/get_main.dart';
 import 'package:grocerygo/Screens/home_screen.dart';
+import 'package:grocerygo/app/modules/home/views/home_view.dart';
 import 'signup_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -14,7 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
   final List<TextEditingController> _otpControllers = List.generate(
-    4,
+    6,
     (index) => TextEditingController(),
   );
   bool _isOtpScreen = false;
@@ -25,14 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState?.validate() ?? false) {
       String phoneNumber = '+91${_phoneController.text}';
 
-      List<String> methods =
-          await _auth.fetchSignInMethodsForEmail(phoneNumber);
-      if (methods.contains('phone')) {
-        _sendOtp(phoneNumber);
-      } else {
-        debugPrint('Phone number not registered');
-        _showSnackBar('Phone number not registered. Please sign up');
-      }
+      _sendOtp(phoneNumber);
     }
   }
 
@@ -67,8 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
         verificationId: _verificationId, smsCode: smsCode);
     try {
       await _auth.signInWithCredential(credential);
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+      Get.offNamed(
+          '/base'); // Navigate to the 'base' route after successful login
     } catch (e) {
       debugPrint('OTP verification failed: $e');
       _showSnackBar('Invalid OTP. Please try again.');
@@ -214,9 +210,9 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 30),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(4, (index) {
+            children: List.generate(6, (index) {
               return SizedBox(
-                width: 60, // Adjust the width for better appearance
+                width: 50, // Adjust the width for better appearance
                 child: TextField(
                   controller: _otpControllers[index],
                   keyboardType: TextInputType.number,
@@ -233,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   onChanged: (value) {
-                    if (value.isNotEmpty && index < 3) {
+                    if (value.isNotEmpty && index < 5) {
                       FocusScope.of(context).nextFocus();
                     } else if (value.isEmpty && index > 0) {
                       FocusScope.of(context).previousFocus();
@@ -245,11 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 30),
           ElevatedButton(
-            onPressed: () {
-              // Handle OTP verification logic here
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (context) => const HomeScreen()));
-            },
+            onPressed: _verifyOtp,
             style: ElevatedButton.styleFrom(
               foregroundColor: Colors.white,
               backgroundColor: Colors.redAccent,

@@ -19,50 +19,64 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
 
-  late bool _success = false;
   late String _verificationId;
+  bool _isLoading = false;
 
   void _signup() async {
     if (_formKey.currentState?.validate() ?? false) {
-      // Request Firebase to send OTP to the given phone number
-      await _auth.verifyPhoneNumber(
-        phoneNumber:
-            '+91${phoneController.text}', // Adjust for your region code
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          // Sign in automatically if verification is completed instantly
-          await _auth.signInWithCredential(credential);
-          // Store user data after sign-in
-          _storeUserData();
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          debugPrint('Phone verification failed: ${e.message}');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Verification failed. Please try again.')),
-          );
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          // Save the verification ID and navigate to the OTP screen
-          _verificationId = verificationId;
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OtpVerificationScreen(
-                verificationId: verificationId,
-                onVerificationSuccess: _onVerificationSuccess,
+      setState(() {
+        _isLoading = true; // Start loading
+      });
+
+      try {
+        await _auth.verifyPhoneNumber(
+          phoneNumber:
+              '+91${phoneController.text}', // Adjust for your region code
+          verificationCompleted: (PhoneAuthCredential credential) async {
+            // Automatically sign in if the verification completes
+            await _auth.signInWithCredential(credential);
+            _storeUserData();
+          },
+          verificationFailed: (FirebaseAuthException e) {
+            debugPrint('Phone verification failed: ${e.message}');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Verification failed. Please try again.')),
+            );
+          },
+          codeSent: (String verificationId, int? resendToken) {
+            setState(() {
+              _isLoading = false; // Stop loading
+            });
+            _verificationId = verificationId;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OtpVerificationScreen(
+                  verificationId: verificationId,
+                  onVerificationSuccess: _onVerificationSuccess,
+                ),
               ),
-            ),
-          );
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          _verificationId = verificationId;
-        },
-      );
+            );
+          },
+          codeAutoRetrievalTimeout: (String verificationId) {
+            _verificationId = verificationId;
+          },
+        );
+      } catch (e) {
+        debugPrint('Error: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An error occurred. Please try again.')),
+        );
+      } finally {
+        setState(() {
+          _isLoading = false; // Stop loading
+        });
+      }
     }
   }
 
   void _onVerificationSuccess() async {
-    // After successful OTP verification and sign-in, store user data
     _storeUserData();
   }
 
@@ -76,14 +90,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'phone': phoneController.text,
         'role': 'customer',
       });
-      setState(() {
-        print("success");
-        Navigator.pushReplacementNamed(context, '/base');
-      });
-    } else {
-      setState(() {
-        _success = false;
-      });
+      Navigator.pushReplacementNamed(context, '/base');
     }
   }
 
@@ -205,18 +212,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   },
                 ),
                 const SizedBox(height: 40),
-                ElevatedButton(
-                  onPressed: _signup,
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
-                    backgroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30.0),
-                    ),
-                  ),
-                  child: const Text('Sign Up'),
-                ),
+                // Signup button with loading indicator
+                _isLoading
+                    ? const CircularProgressIndicator()
+                    : ElevatedButton(
+                        onPressed: _signup,
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          backgroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30.0),
+                          ),
+                        ),
+                        child: const Text('Sign Up'),
+                      ),
                 const SizedBox(height: 20),
                 TextButton(
                   onPressed: () {
