@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
-import 'package:grocerygo/Screens/home_screen.dart';
-import 'package:grocerygo/app/modules/home/views/home_view.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'signup_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'admin_home_screen.dart'; // Import your AdminHomeScreen here
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isOtpScreen = false;
   String _verificationId = '';
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   void _login() async {
     if (_formKey.currentState?.validate() ?? false) {
@@ -37,8 +37,7 @@ class _LoginScreenState extends State<LoginScreen> {
       phoneNumber: phoneNumber,
       verificationCompleted: (PhoneAuthCredential credential) async {
         await _auth.signInWithCredential(credential);
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()));
+        _checkUserRole();
       },
       verificationFailed: (FirebaseAuthException e) {
         debugPrint('Verification failed: ${e.message}');
@@ -63,11 +62,40 @@ class _LoginScreenState extends State<LoginScreen> {
         verificationId: _verificationId, smsCode: smsCode);
     try {
       await _auth.signInWithCredential(credential);
-      Get.offNamed(
-          '/base'); // Navigate to the 'base' route after successful login
+      _checkUserRole();
     } catch (e) {
       debugPrint('OTP verification failed: $e');
       _showSnackBar('Invalid OTP. Please try again.');
+    }
+  }
+
+  void _checkUserRole() async {
+    try {
+      User? user = _auth.currentUser;
+      if (user != null) {
+        DocumentSnapshot userDoc =
+            await _firestore.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          String role = userDoc.get('role');
+          if (role == 'admin') {
+            Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminHomeScreen()));
+          } else if (role == 'customer') {
+            Get.offNamed('/base'); // Redirect to the customer base screen
+          } else {
+            _showSnackBar('Unknown role. Please contact support.');
+          }
+        } else {
+          _showSnackBar('User record not found. Please sign up first.');
+        }
+      } else {
+        _showSnackBar('User authentication failed. Please try again.');
+      }
+    } catch (e) {
+      debugPrint('Error fetching user role: $e');
+      _showSnackBar('Error fetching user role. Please try again.');
     }
   }
 

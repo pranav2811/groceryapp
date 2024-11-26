@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:grocerygo/Screens/admin_order_page.dart';
+import 'package:grocerygo/Screens/admin_upload_csv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:grocerygo/Screens/admin_category_page.dart';
 
@@ -27,8 +28,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     super.initState();
     _fetchCategories(); // Fetch categories from Firestore on initialization
     _pages.add(_buildInventoryPage());
+    _pages.add(AdminUploadCSVPage());
     _pages.add(AdminOrderPage());
-    _pages.add(AdminCategoryScreen()); // Placeholder for future pages
+    _pages.add(AdminCategoryScreen());
   }
 
   void _fetchCategories() async {
@@ -341,6 +343,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             label: 'Inventory',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.upload_file),
+            label: 'CSV Upload',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.list),
             label: 'Orders',
           ),
@@ -349,6 +355,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
+        selectedItemColor: Colors.deepPurple, // Customize selected item color
+        unselectedItemColor: Colors.grey, // Customize unselected item color
+        backgroundColor: Colors.white,
       ),
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton(
