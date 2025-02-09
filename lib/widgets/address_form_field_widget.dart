@@ -7,11 +7,11 @@ class AddressFormFieldWidget extends StatefulWidget {
   final bool isOptional;
 
   const AddressFormFieldWidget({
-    Key? key,
+    super.key,
     required this.controller,
     required this.hint,
     this.isOptional = false,
-  }) : super(key: key);
+  });
 
   @override
   State<AddressFormFieldWidget> createState() => _AddressFormFieldWidgetState();

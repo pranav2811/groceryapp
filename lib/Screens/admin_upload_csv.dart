@@ -19,8 +19,7 @@ class _AdminUploadCSVPageState extends State<AdminUploadCSVPage> {
   Future<void> _uploadCSVFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
+        type: FileType.any,
       );
 
       if (result != null) {

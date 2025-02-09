@@ -7,7 +7,6 @@ import 'package:groceryapp/widgets/bottom_sheet_close_button.dart';
 import 'package:groceryapp/widgets/custom_button.dart';
 import 'package:groceryapp/widgets/name_and_phone_number_widget.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
-import 'package:groceryapp/widgets/address_display_widget.dart';
 import 'package:groceryapp/common/constants/colors.dart';
 
 class AddAddressBottomSheet extends StatefulWidget {

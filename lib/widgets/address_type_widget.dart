@@ -3,7 +3,7 @@ import 'package:groceryapp/common/constants/colors.dart';
 import 'package:groceryapp/common/enums/address_type.dart';
 
 class AddressTypeWidget extends StatefulWidget {
-  const AddressTypeWidget({Key? key}) : super(key: key);
+  const AddressTypeWidget({super.key});
 
   @override
   State<AddressTypeWidget> createState() => _AddressTypeWidgetState();

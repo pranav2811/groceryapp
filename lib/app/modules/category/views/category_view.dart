@@ -102,7 +102,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/category_controller.dart';
 import '../../products/controllers/products_controller.dart';
-import '../../../components/product_item.dart';
 import '../../products/views/products_view.dart';
 
 class CategoryView extends GetView<CategoryController> {

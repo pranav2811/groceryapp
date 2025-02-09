@@ -7,11 +7,11 @@ class AddressWidget extends StatelessWidget {
   final TextEditingController nearbyLandmarkController;
 
   const AddressWidget({
-    Key? key,
+    super.key,
     required this.flatHouseFloorBuildingController,
     required this.areaSectorLocalityController,
     required this.nearbyLandmarkController,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

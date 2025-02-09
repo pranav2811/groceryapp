@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 class UpiPaymentPage extends StatefulWidget {
+  const UpiPaymentPage({super.key});
+
   @override
   _UpiPaymentPageState createState() => _UpiPaymentPageState();
 }

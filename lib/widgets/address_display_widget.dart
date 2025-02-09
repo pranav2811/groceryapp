@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 class AddressDisplayWidget extends StatelessWidget {
   final Map<String, dynamic> addressData;
 
-  const AddressDisplayWidget({Key? key, required this.addressData})
-      : super(key: key);
+  const AddressDisplayWidget({super.key, required this.addressData});
 
   @override
   Widget build(BuildContext context) {

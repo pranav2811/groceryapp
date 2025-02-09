@@ -258,7 +258,7 @@ import '../../../components/custom_form_field.dart';
 import '../../../components/custom_icon_button.dart';
 import '../../../components/dark_transition.dart';
 import '../../../components/product_item.dart'; // Import Product model
-import '../../../data/models/product_model.dart'; // Import ProductModel
+// Import ProductModel
 import '../controllers/home_controller.dart';
 
 class HomeView extends GetView<HomeController> {

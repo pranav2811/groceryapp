@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:groceryapp/common/constants/colors.dart';
 
 class BottomSheetCloseButton extends StatelessWidget {
-  const BottomSheetCloseButton({Key? key}) : super(key: key);
+  const BottomSheetCloseButton({super.key});
 
   @override
   Widget build(BuildContext context) {
