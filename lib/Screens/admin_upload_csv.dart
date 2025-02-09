@@ -31,38 +31,82 @@ class _AdminUploadCSVPageState extends State<AdminUploadCSVPage> {
         final csvData = await file.readAsString();
         List<List<dynamic>> rows = const CsvToListConverter().convert(csvData);
 
-        // Ensure there are rows and a header
         if (rows.isEmpty || rows.length < 2) {
           throw Exception("CSV file is empty or doesn't have enough rows.");
         }
 
-        // The first row contains the column headers
         List<String> headers =
-            rows[0].map((header) => header.toString()).toList();
+            rows[0].map((header) => header.toString().trim()).toList();
 
-        // Process each subsequent row as a Firestore document
+        Map<String, String> columnMapping = {
+          'Name': 'name',
+          'Product Name': 'name',
+          'Item Name': 'name',
+          'Image URL': 'imageUrls',
+          'Image URLs': 'imageUrls',
+          'img_url': 'imageUrls',
+          'Pictures': 'imageUrls',
+          'Price': 'price',
+          'Cost': 'price',
+          'Selling Price': 'price',
+          'Category': 'Category',
+          'Category Name': 'Category'
+        };
+
+        Map<String, String> detectedColumns = {};
+        columnMapping.forEach((csvKey, firestoreKey) {
+          for (String header in headers) {
+            if (header.toLowerCase().contains(csvKey.toLowerCase())) {
+              detectedColumns[firestoreKey] = header;
+            }
+          }
+        });
+
+        print("Detected columns: $detectedColumns");
+
         for (var i = 1; i < rows.length; i++) {
           final row = rows[i];
-
-          // Create a Map to hold the document fields
           Map<String, dynamic> documentData = {};
 
           for (int j = 0; j < headers.length; j++) {
-            // Dynamically map each column to its respective header
-            documentData[headers[j]] = row[j];
+            String originalHeader = headers[j];
+            String? mappedHeader = detectedColumns.entries
+                .firstWhere(
+                  (entry) => entry.value == originalHeader,
+                  orElse: () => MapEntry(originalHeader, originalHeader),
+                )
+                .key;
+
+            documentData[mappedHeader] = row[j];
           }
 
-          // Extract the category (assuming it's always present in the CSV)
+          documentData['name'] = documentData['name'] ?? 'Unnamed Item';
+
+          // ✅ Correctly split multiple image URLs using ", https" as the separator
+          if (documentData.containsKey('imageUrls')) {
+            documentData['imageUrls'] = documentData['imageUrls']
+                .toString()
+                .split(RegExp(r',\s+(?=https)')) // Split only on ", https"
+                .map((e) => e.trim()) // Trim spaces
+                .toList();
+          } else {
+            documentData['imageUrls'] = ['https://via.placeholder.com/150'];
+          }
+
+          documentData['stock'] = true;
+
           if (!documentData.containsKey('Category')) {
-            throw Exception("Missing 'category' field in the CSV.");
+            throw Exception("Missing 'Category' field in the CSV.");
           }
 
           final String category = documentData['Category'];
-
-          // Remove category from documentData to avoid redundancy
           documentData.remove('Category');
 
-          // Add item under the respective category in Firestore
+          await _firestore
+              .collection('inventory')
+              .doc(category)
+              .set({'name': category}, SetOptions(merge: true));
+
           await _firestore
               .collection('inventory')
               .doc(category)
@@ -75,6 +119,7 @@ class _AdminUploadCSVPageState extends State<AdminUploadCSVPage> {
         );
       }
     } catch (e) {
+      print("Error during CSV upload: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to upload CSV: $e')),
       );

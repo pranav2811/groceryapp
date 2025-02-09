@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -308,13 +309,49 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       children: itemSnapshot.data!.docs.map((itemDoc) {
                         return Card(
                           child: ListTile(
-                            leading: Image.network(itemDoc['imageUrl']),
-                            title: Text(itemDoc['name']),
-                            subtitle: Text('Price: ${itemDoc['price']}'),
-                            trailing: Text(
-                                itemDoc['stock'] ? 'In Stock' : 'Out of Stock'),
-                            onTap: () => _editItemDialog(itemDoc,
-                                categoryDoc.id), // Tap to edit the item
+                            leading: (() {
+                              final data =
+                                  itemDoc.data() as Map<String, dynamic>?;
+
+                              if (data != null &&
+                                  data.containsKey('imageUrls') &&
+                                  (data['imageUrls'] as List).isNotEmpty) {
+                                List<String> imageList =
+                                    List<String>.from(data['imageUrls']);
+
+                                return SizedBox(
+                                  width: 100, // Adjust width as needed
+                                  height: 100,
+                                  child: CarouselSlider(
+                                    options: CarouselOptions(
+                                      height: 100.0,
+                                      autoPlay: true,
+                                      enlargeCenterPage: true,
+                                      enableInfiniteScroll: false,
+                                    ),
+                                    items: imageList.map((url) {
+                                      return Image.network(url,
+                                          fit: BoxFit.cover);
+                                    }).toList(),
+                                  ),
+                                );
+                              } else {
+                                return Image.asset('assets/placeholder.jpg',
+                                    width: 100, height: 100);
+                              }
+                            })(),
+                            title: Text((itemDoc.data()
+                                    as Map<String, dynamic>?)?['name'] ??
+                                'No Name'),
+                            subtitle: Text(
+                                'Price: ${(itemDoc.data() as Map<String, dynamic>?)?['price'] ?? 'N/A'}'),
+                            trailing: Text(((itemDoc.data()
+                                        as Map<String, dynamic>?)?['stock'] ??
+                                    false)
+                                ? 'In Stock'
+                                : 'Out of Stock'),
+                            onTap: () =>
+                                _editItemDialog(itemDoc, categoryDoc.id),
                           ),
                         );
                       }).toList(),
