@@ -1,0 +1,1 @@
+enum OrderFor { myself, someoneElse }
