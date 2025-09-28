@@ -6,8 +6,9 @@ import 'package:groceryapp/widgets/address_widget.dart';
 import 'package:groceryapp/widgets/bottom_sheet_close_button.dart';
 import 'package:groceryapp/widgets/custom_button.dart';
 import 'package:groceryapp/widgets/name_and_phone_number_widget.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:groceryapp/common/constants/colors.dart';
+import 'package:get/get.dart';
 
 class AddAddressBottomSheet extends StatefulWidget {
   final String userId; // User ID to query the address collection
@@ -44,7 +45,6 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
       if (userSnapshot.exists && userSnapshot.data() != null) {
         var data = userSnapshot.data() as Map<String, dynamic>;
 
-        // Populate address and personal details if available
         if (data['address'] != null) {
           setState(() {
             existingAddress = data['address'];
@@ -52,29 +52,27 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
           });
         }
         if (data['name'] != null) {
-          nameController.text = data['name']; // Populate name from Firestore
+          nameController.text = data['name'];
         }
         if (data['phone'] != null) {
-          phoneController.text = data['phone']; // Populate phone from Firestore
+          phoneController.text = data['phone'];
         }
       }
     } catch (e) {
-      print('Error fetching user data: $e');
+      debugPrint('Error fetching user data: $e');
+      _showError('Failed to load saved address');
     }
   }
 
   Future<void> saveAddress() async {
     try {
-      String? userId = FirebaseAuth.instance.currentUser?.uid;
-
+      final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not logged in.')),
-        );
+        _showError('User not logged in.');
         return;
       }
 
-      Map<String, dynamic> newAddress = {
+      final newAddress = {
         'flatHouseFloorBuilding': flatHouseFloorBuildingController.text,
         'areaSectorLocality': areaSectorLocalityController.text,
         'nearbyLandmark': nearbyLandmarkController.text,
@@ -88,28 +86,20 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
         'phone': phoneController.text,
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Address saved successfully!')),
-      );
-
+      _showSuccess('Address saved successfully!');
+      // Close this sheet, returning the address upward (if caller needs it)
       Navigator.pop(context, newAddress);
-
-      // Show payment options after address is saved
+      // Immediately show payment options
       showPaymentOptions(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save address: $e')),
-      );
+      _showError('Failed to save address: $e');
     }
   }
 
   void showPaymentOptions(BuildContext context) {
-    String? userId = FirebaseAuth.instance.currentUser?.uid;
-
+    final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User not logged in.')),
-      );
+      _showError('User not logged in.');
       return;
     }
 
@@ -120,6 +110,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
+        final localTextTheme = Theme.of(context).textTheme;
         return Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
@@ -127,8 +118,9 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
             children: [
               Text(
                 "Select Payment Option",
-                style: textTheme?.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: localTextTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 20),
               ListTile(
@@ -136,24 +128,20 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
                 title: const Text("Cash on Delivery"),
                 onTap: () async {
                   try {
-                    // Update Firestore with the payment status
-                    await FirebaseFirestore.instance.collection('photo_orders').add({
+                    await FirebaseFirestore.instance
+                        .collection('photo_orders')
+                        .add({
                       'userId': userId,
                       'paymentStatus': 'Cash on Delivery',
                       'timestamp': FieldValue.serverTimestamp(),
-                      // Add other order details here as needed
+                      // TODO: include more fields if needed (address snapshot, totals, imageUrl, etc.)
                     });
 
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text(
-                              'Cash on Delivery selected. Order placed successfully.')),
-                    );
+                    Navigator.pop(context); // close payment sheet
+                    Get.offAllNamed('/home'); // go to Home
+                    _showSuccess('Order placed successfully (COD).');
                   } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to place order: $e')),
-                    );
+                    _showError('Failed to place order: $e');
                   }
                 },
               ),
@@ -161,10 +149,9 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
                 leading: const Icon(Icons.qr_code),
                 title: const Text("UPI"),
                 onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('UPI selected')),
-                  );
+                  Navigator.pop(context); // close payment sheet
+                  Get.offAllNamed('/home'); // go to Home
+                  _showSuccess('UPI selected.');
                 },
               ),
             ],
@@ -212,7 +199,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
           const SizedBox(height: 10),
           GestureDetector(
             onTap: () {
-              Navigator.pop(context);
+              Navigator.pop(context); // close address sheet
               showPaymentOptions(context);
             },
             child: Card(
@@ -225,11 +212,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.home,
-                      color: Colors.black,
-                      size: 28,
-                    ),
+                    const Icon(Icons.home, color: Colors.black, size: 28),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -376,6 +359,35 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
         ),
       ],
     );
+  }
+
+  // Styled GetX snackbars
+  void _showSuccess(String message) {
+    Get.snackbar(
+      'Success',
+      message,
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.TOP,
+      margin: const EdgeInsets.all(12),
+      borderRadius: 10,
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  void _showError(String message) {
+    Get.snackbar(
+      'Error',
+      message,
+      backgroundColor: Colors.red.shade700,
+      colorText: Colors.white,
+      snackPosition: SnackPosition.TOP,
+      margin: const EdgeInsets.all(12),
+      borderRadius: 10,
+      duration: const Duration(seconds: 4),
+    );
+    // Also log to console for debugging
+    debugPrint('Error: $message');
   }
 
   Widget orderForButtonWidget({
