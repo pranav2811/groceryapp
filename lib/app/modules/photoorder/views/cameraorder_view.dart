@@ -1,9 +1,10 @@
+import 'dart:io';
+
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:camera/camera.dart';
-import 'dart:io'; // Needed to display the captured image
 
-import '../controllers/cameraorder_controller.dart'; // Import the correct controller
+import '../controllers/cameraorder_controller.dart';
 
 class CameraView extends GetView<CameraViewController> {
   const CameraView({super.key});
@@ -12,116 +13,109 @@ class CameraView extends GetView<CameraViewController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Camera"),
+        title: const Text('Camera'),
+        centerTitle: true,
       ),
       body: Obx(() {
+        // 1) Loading while camera initializes
         if (!controller.isCameraInitialized.value) {
           return const Center(child: CircularProgressIndicator());
-        } else if (controller.capturedImagePath.value.isNotEmpty) {
-          // Display the captured image and the "Place Order" button
+        }
+
+        // 2) If a photo was captured, show preview + actions
+        if (controller.capturedImagePath.value.isNotEmpty) {
           return Stack(
             children: [
-              // Display the captured image
+              // Photo preview (fills entire screen)
               Positioned.fill(
                 child: Image.file(
                   File(controller.capturedImagePath.value),
-                  fit: BoxFit.cover, // Make the image cover the entire screen
+                  fit: BoxFit.cover,
                 ),
               ),
-              // Place "Place Order" button at the bottom
+
+              // Place Order button (bottom center)
               Positioned(
-                bottom: 20,
                 left: 20,
                 right: 20,
-                child: Center(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // Logic for placing the order
-                      Get.snackbar('Order', 'Your order has been placed!');
-                    },
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(20), // Reduce corner radius
-                      ),
-                      backgroundColor: Colors.green,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12.0, // Reduce vertical padding
-                        horizontal:
-                            40.0, // Reduce horizontal padding to make it smaller
-                      ), // Background color of the button
-                      minimumSize: const Size(
-                          150, 40), // Set a minimum size for the button
-                    ),
-                    child: const Text(
-                      'Place Order',
-                      style: TextStyle(
-                        fontSize: 16, // Slightly smaller font size
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white, // Ensure text is white
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // Add the circular "Recapture" button at the bottom right
-              Positioned(
                 bottom: 20,
-                right: 20,
-                child: FloatingActionButton(
-                  onPressed: () {
-                    // Allow the user to retake the picture
-                    controller.capturedImagePath.value =
-                        ''; // Reset the image path
-                  },
-                  backgroundColor: Colors.white,
-                  child: const Icon(
-                    Icons.refresh,
-                    color: Colors.blue, // Blue text for the refresh icon
-                  ),
-                ),
-              ),
-            ],
-          );
-        } else {
-          // Display the camera preview if no image is captured yet
-          return Stack(
-            children: [
-              CameraPreview(controller.cameraController),
-              Positioned(
-                bottom: 20,
-                left: 20,
-                right: 20,
                 child: ElevatedButton(
                   onPressed: () async {
-                    // Capture the image when the button is pressed
-                    final image =
-                        await controller.cameraController.takePicture();
-                    controller.capturedImagePath.value =
-                        image.path; // Store the image path
+                    // Calls controller logic that:
+                    // - confirms
+                    // - opens address bottom sheet
+                    // - uploads file to Storage
+                    // - writes Firestore order
+                    await controller.placeOrder(context);
                   },
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    minimumSize: const Size(double.infinity, 48),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    backgroundColor: Colors.blue,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16.0,
-                      horizontal: 32.0,
-                    ), // Background color of the capture button
                   ),
                   child: const Text(
-                    'Capture Image',
+                    'Place Order',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
+                ),
+              ),
+
+              // Recapture (bottom-right FAB)
+              Positioned(
+                right: 20,
+                bottom: 90,
+                child: FloatingActionButton(
+                  heroTag: 'recapture_fab',
+                  onPressed: () {
+                    controller.capturedImagePath.value = ''; // reset preview
+                  },
+                  backgroundColor: Colors.white,
+                  child: const Icon(Icons.refresh, color: Colors.blue),
                 ),
               ),
             ],
           );
         }
+
+        // 3) Default: show live camera preview with Capture button
+        return Stack(
+          children: [
+            Positioned.fill(child: CameraPreview(controller.cameraController)),
+
+            // Capture Image button (bottom center)
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 20,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final image = await controller.cameraController.takePicture();
+                  controller.capturedImagePath.value = image.path;
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: const Text(
+                  'Capture Image',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
       }),
     );
   }
