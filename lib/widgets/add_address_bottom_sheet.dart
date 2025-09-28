@@ -137,7 +137,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
                 onTap: () async {
                   try {
                     // Update Firestore with the payment status
-                    await FirebaseFirestore.instance.collection('orders').add({
+                    await FirebaseFirestore.instance.collection('photo_orders').add({
                       'userId': userId,
                       'paymentStatus': 'Cash on Delivery',
                       'timestamp': FieldValue.serverTimestamp(),
