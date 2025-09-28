@@ -82,28 +82,11 @@ class ProfileView extends GetView<ProfileController> {
                   ),
                 ),
                 SizedBox(height: 20.h),
-
-                // Collections and Money Section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildInfoCard('Collections', Icons.bookmark),
-                    _buildInfoCard('Money', Icons.account_balance_wallet,
-                        value: '₹0'),
-                  ],
-                ),
-                SizedBox(height: 20.h),
-
                 // Profile and Mode Switches
                 _buildSwitchTile('Your profile', '100% completed'),
                 _buildSwitchTile('Veg Mode', '', isSwitch: true),
                 _buildSwitchTile('Appearance', 'Light'),
                 SizedBox(height: 20.h),
-
-                // Your rating
-                _buildInfoTile('Your rating', '4.71', icon: Icons.star),
-                SizedBox(height: 20.h),
-
                 // Orders Section
                 Text(
                   'Food Orders',
