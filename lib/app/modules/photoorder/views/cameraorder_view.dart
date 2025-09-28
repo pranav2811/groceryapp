@@ -92,14 +92,14 @@ class CameraView extends GetView<CameraViewController> {
             Positioned(
               left: 20,
               right: 20,
-              bottom: 20,
+              bottom: 35,
               child: ElevatedButton(
                 onPressed: () async {
                   final image = await controller.cameraController.takePicture();
                   controller.capturedImagePath.value = image.path;
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.green,
                   minimumSize: const Size(double.infinity, 48),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
@@ -110,6 +110,7 @@ class CameraView extends GetView<CameraViewController> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
               ),
