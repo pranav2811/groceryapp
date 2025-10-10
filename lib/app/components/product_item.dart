@@ -79,12 +79,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:groceryapp/app/data/models/product_model.dart';
 
-import '../../models/product.dart'; // Adjust this import to your actual Product model path
 import '../routes/app_pages.dart';
 
 class ProductItem extends StatelessWidget {
-  final Product product;
+  final ProductModel product;
   const ProductItem({super.key, required this.product});
 
   @override
@@ -117,8 +117,7 @@ class ProductItem extends StatelessWidget {
               left: 26.w,
               right: 25.w,
               child: Image.network(
-                product
-                    .picPath, // Using picPath as the URL for the product image
+                product.image, // Using picPath as the URL for the product image
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(Icons.broken_image,
@@ -147,7 +146,7 @@ class ProductItem extends StatelessWidget {
                       ),
                   5.verticalSpace,
                   Text(
-                    '${product.weight}, ${product.price}\$',
+                    '1Kg, ${product.price}\$',
                     style:
                         theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
                   ).animate().fade().slideY(

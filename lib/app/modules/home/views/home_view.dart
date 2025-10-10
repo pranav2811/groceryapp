@@ -473,20 +473,7 @@ class HomeView extends GetView<HomeController> {
                         primary: false,
                         itemCount: controller.products.length,
                         itemBuilder: (context, index) {
-                          final productModel = controller
-                              .products[index]; // ProductModel instance
-
-                          // Convert ProductModel to Product
-                          final product = Product(
-                            name: productModel.name,
-                            picPath: productModel.image,
-                            weight: '1kg',
-                            description: 'Default description',
-                            price: productModel.price.toString(),
-                          );
-
-                          return ProductItem(
-                              product: product); // Pass converted Product
+                          return ProductItem(product: controller.products[index]);
                         },
                       ),
                       20.verticalSpace,

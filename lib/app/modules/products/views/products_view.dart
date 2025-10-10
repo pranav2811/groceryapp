@@ -76,6 +76,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/products_controller.dart';
 import '../../../components/product_item.dart';
+import 'package:groceryapp/app/data/models/product_model.dart';
+
 
 class ProductsView extends GetView<ProductsController> {
   const ProductsView({super.key});
