@@ -20,6 +20,29 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+
+    Widget buildProductImage(String path) {
+      final isNetwork = path.startsWith('http://') || path.startsWith('https://');
+      if (isNetwork) {
+        return Image.network(
+          path,
+          width: 250.w,
+          height: 225.h,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              const Icon(Icons.broken_image, size: 64, color: Colors.grey),
+        );
+      }
+      return Image.asset(
+        path,
+        width: 250.w,
+        height: 225.h,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.image_not_supported, size: 64, color: Colors.grey),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         child: ListView(
@@ -65,43 +88,56 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     top: 80.h,
                     left: 0,
                     right: 0,
-                    child: Image.asset(
-                      controller.product.image,
-                      width: 250.w,
-                      height: 225.h,
-                    ).animate().fade().scale(
-                          duration: 800.ms,
-                          curve: Curves.fastOutSlowIn,
-                        ),
+                    child: buildProductImage(controller.product.image)
+                        .animate()
+                        .fade()
+                        .scale(duration: 800.ms, curve: Curves.fastOutSlowIn),
                   ),
                 ],
               ),
             ),
+
             30.verticalSpace,
+
+            // Title + Counter row (no overflow)
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: Row(
                 children: [
-                  Text(
-                    controller.product.name,
-                    style: theme.textTheme.bodyMedium,
-                  ).animate().fade().slideX(
-                        duration: 300.ms,
-                        begin: -1,
-                        curve: Curves.easeInSine,
-                      ),
-                  const Spacer(),
-                  ProductCountItem(product: controller.product)
-                      .animate()
-                      .fade(duration: 200.ms),
+                  Expanded(
+                    child: Text(
+                      controller.product.name,
+                      style: theme.textTheme.bodyMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ).animate().fade().slideX(
+                          duration: 300.ms,
+                          begin: -1,
+                          curve: Curves.easeInSine,
+                        ),
+                  ),
+                  12.horizontalSpace,
+                  SizedBox(
+                    width: 120.w, // bound counter width to avoid overflow
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: ProductCountItem(product: controller.product)
+                          .animate()
+                          .fade(duration: 200.ms),
+                    ),
+                  ),
                 ],
               ),
             ),
+
             8.verticalSpace,
+
+            // Price
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: Text(
-                '1kg, ${controller.product.price}\$',
+                '1kg, ${controller.product.price.toStringAsFixed(2)}\$',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.primaryColor,
                 ),
@@ -111,7 +147,10 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     curve: Curves.easeInSine,
                   ),
             ),
+
             8.verticalSpace,
+
+            // Description
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: Text(
@@ -123,7 +162,10 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     curve: Curves.easeInSine,
                   ),
             ),
+
             20.verticalSpace,
+
+            // Info cards
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: GridView(
@@ -151,7 +193,10 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     ),
               ),
             ),
+
             30.verticalSpace,
+
+            // Add to cart
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: CustomButton(
@@ -167,6 +212,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     curve: Curves.easeInSine,
                   ),
             ),
+
             30.verticalSpace,
           ],
         ),
