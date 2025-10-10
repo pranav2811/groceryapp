@@ -1,6 +1,10 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:groceryapp/widgets/add_address_bottom_sheet.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -95,7 +99,7 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
     }
   }
 
-  void _placeOrder() {
+  Future<void> _placeOrder() async {
     if (_imageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please capture or select a photo.')),
@@ -103,26 +107,87 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
       return;
     }
 
-    // Implement your order placement logic here
-
-    showDialog(
+    // Step 1: Ask for confirmation
+    final shouldProceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Order Placed'),
-        content: const Text('Your order has been placed successfully!'),
+        title: const Text('Confirm Order'),
+        content: const Text(
+            'Do you want to place this order with the selected photo?'),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              setState(() {
-                _imageFile = null; // Reset image after order placement
-              });
-            },
-            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
           ),
         ],
       ),
     );
+
+    if (shouldProceed != true) return;
+
+    // Step 2: Open AddAddressBottomSheet and wait for result
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not logged in')),
+      );
+      return;
+    }
+
+    final selectedAddress = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddAddressBottomSheet(userId: userId),
+    );
+
+    if (selectedAddress == null) return;
+
+    // Step 3: Upload image and save order
+    try {
+      final timestamp = DateTime.now();
+      final fileName =
+          "photo_order_${userId}_${timestamp.millisecondsSinceEpoch}.jpg";
+
+      final ref =
+          FirebaseStorage.instance.ref().child('photo_orders').child(fileName);
+      await ref.putFile(_imageFile!);
+      final imageUrl = await ref.getDownloadURL();
+
+      await FirebaseFirestore.instance.collection('photo_orders').add({
+        'userId': userId,
+        'timestamp': Timestamp.fromDate(timestamp),
+        'address': selectedAddress,
+        'imageUrl': imageUrl,
+      });
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Order Placed'),
+          content: const Text('Your photo order has been placed successfully!'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                setState(() {
+                  _imageFile = null;
+                });
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to place order: $e')),
+      );
+    }
   }
 
   @override

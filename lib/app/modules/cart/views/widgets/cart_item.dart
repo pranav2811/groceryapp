@@ -29,7 +29,7 @@ class CartItem extends GetView<CartController> {
               Text(product.name, style: theme.textTheme.titleSmall),
               5.verticalSpace,
               Text(
-                '1kg, ${product.price}\$',
+                '1kg, ${product.price}',
                 style: theme.textTheme.titleSmall?.copyWith(
                   color: theme.primaryColor,
                 ),
