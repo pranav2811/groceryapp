@@ -21,10 +21,7 @@ class ProductCountItem extends GetView<BaseController> {
           width: 36.w,
           height: 36.h,
           onPressed: () => controller.onDecreasePressed(product.id),
-          icon: SvgPicture.asset(
-            Constants.removeIcon,
-            fit: BoxFit.none,
-          ),
+          icon: SvgPicture.asset(Constants.removeIcon, fit: BoxFit.none),
           backgroundColor: theme.cardColor,
         ),
         16.horizontalSpace,
@@ -39,11 +36,9 @@ class ProductCountItem extends GetView<BaseController> {
         CustomIconButton(
           width: 36.w,
           height: 36.h,
-          onPressed: () => controller.onIncreasePressed(product.id),
-          icon: SvgPicture.asset(
-            Constants.addIcon,
-            fit: BoxFit.none,
-          ),
+          // IMPORTANT: first tap should add if missing, else increment
+          onPressed: () => controller.addOrIncrease(product),
+          icon: SvgPicture.asset(Constants.addIcon, fit: BoxFit.none),
           backgroundColor: theme.primaryColor,
         ),
       ],
