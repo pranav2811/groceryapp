@@ -8,11 +8,8 @@ class ProductDetailsController extends GetxController {
   // get product details from arguments
   ProductModel product = Get.arguments;
 
-  /// when the user press on add to cart button
   onAddToCartPressed() {
-    if (product.quantity == 0) {
-      Get.find<BaseController>().onIncreasePressed(product.id);
-    }
+    Get.find<BaseController>().addOrIncrease(product);
     Get.back();
   }
 

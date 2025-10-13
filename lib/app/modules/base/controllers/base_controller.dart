@@ -1,14 +1,11 @@
 import 'package:get/get.dart';
 
 import '../../../../utils/dummy_helper.dart';
+import '../../../data/models/product_model.dart';
 import '../../cart/controllers/cart_controller.dart';
 
 class BaseController extends GetxController {
-
-  // current screen index
   int currentIndex = 0;
-
-  // to count the number of products in the cart
   int cartItemsCount = 0;
 
   @override
@@ -17,29 +14,47 @@ class BaseController extends GetxController {
     super.onInit();
   }
 
-  /// change the selected screen index
   changeScreen(int selectedIndex) {
     currentIndex = selectedIndex;
     update();
   }
 
-  /// calculate the number of products in the cart
   getCartItemsCount() {
-    var products = DummyHelper.products;
+    final products = DummyHelper.products;
     cartItemsCount = products.fold<int>(0, (p, c) => p + c.quantity);
     update(['CartBadge']);
   }
 
-  /// when the user press on add + icon
+  /// New: add if missing, else increase. Works for Firestore or dummy items.
+  void addOrIncrease(ProductModel product) {
+    final list = DummyHelper.products;
+    final idx = list.indexWhere((p) => p.id == product.id);
+
+    if (idx == -1) {
+      // Ensure we add with at least quantity 1
+      product.quantity = (product.quantity > 0) ? product.quantity : 1;
+      list.add(product);
+    } else {
+      list[idx].quantity++;
+    }
+
+    getCartItemsCount();
+    if (Get.isRegistered<CartController>()) {
+      Get.find<CartController>().getCartProducts();
+    }
+    update(['ProductQuantity', 'CartBadge']);
+  }
+
+  /// Existing + button (works after the first add)
   onIncreasePressed(int productId) {
-    DummyHelper.products.firstWhere((p) => p.id == productId).quantity++;
+    final p = DummyHelper.products.firstWhere((p) => p.id == productId);
+    p.quantity++;
     getCartItemsCount();
     update(['ProductQuantity']);
   }
 
-  /// when the user press on remove - icon
   onDecreasePressed(int productId) {
-    var product = DummyHelper.products.firstWhere((p) => p.id == productId);
+    final product = DummyHelper.products.firstWhere((p) => p.id == productId);
     if (product.quantity > 0) {
       product.quantity--;
       getCartItemsCount();
@@ -49,5 +64,4 @@ class BaseController extends GetxController {
       update(['ProductQuantity']);
     }
   }
-
 }
