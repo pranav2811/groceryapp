@@ -27,6 +27,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
   final flatHouseFloorBuildingController = TextEditingController();
   final areaSectorLocalityController = TextEditingController();
   final nearbyLandmarkController = TextEditingController();
+
   bool hasAddress = false;
   Map<String, dynamic>? existingAddress;
 
@@ -38,25 +39,20 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
 
   Future<void> fetchUserAddress() async {
     try {
-      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
+      final userSnap = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.userId)
           .get();
-      if (userSnapshot.exists && userSnapshot.data() != null) {
-        var data = userSnapshot.data() as Map<String, dynamic>;
-
+      if (userSnap.exists && userSnap.data() != null) {
+        final data = userSnap.data() as Map<String, dynamic>;
         if (data['address'] != null) {
           setState(() {
-            existingAddress = data['address'];
+            existingAddress = Map<String, dynamic>.from(data['address']);
             hasAddress = true;
           });
         }
-        if (data['name'] != null) {
-          nameController.text = data['name'];
-        }
-        if (data['phone'] != null) {
-          phoneController.text = data['phone'];
-        }
+        if (data['name'] != null) nameController.text = data['name'];
+        if (data['phone'] != null) phoneController.text = data['phone'];
       }
     } catch (e) {
       debugPrint('Error fetching user data: $e');
@@ -64,6 +60,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
     }
   }
 
+  // Save new/edited address into users/{uid} and then ask for payment.
   Future<void> saveAddress() async {
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -73,37 +70,33 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
       }
 
       final newAddress = {
-        'flatHouseFloorBuilding': flatHouseFloorBuildingController.text,
-        'areaSectorLocality': areaSectorLocalityController.text,
-        'nearbyLandmark': nearbyLandmarkController.text,
-        'phone': phoneController.text,
-        'name': nameController.text,
+        'flatHouseFloorBuilding': flatHouseFloorBuildingController.text.trim(),
+        'areaSectorLocality': areaSectorLocalityController.text.trim(),
+        'nearbyLandmark': nearbyLandmarkController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'name': nameController.text.trim(),
       };
 
-      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
         'address': newAddress,
-        'name': nameController.text,
-        'phone': phoneController.text,
-      });
+        'name': nameController.text.trim(),
+        'phone': phoneController.text.trim(),
+      }, SetOptions(merge: true));
 
       _showSuccess('Address saved successfully!');
-      // Close this sheet, returning the address upward (if caller needs it)
-      Navigator.pop(context, newAddress);
-      // Immediately show payment options
-      showPaymentOptions(context);
+      // Ask for payment, and return the result (address + payment method) to the caller.
+      await _showPaymentOptionsAndReturn(addressToReturn: newAddress);
     } catch (e) {
       _showError('Failed to save address: $e');
     }
   }
 
-  void showPaymentOptions(BuildContext context) {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) {
-      _showError('User not logged in.');
-      return;
-    }
-
-    showModalBottomSheet(
+  /// Opens payment options, then returns to the CALLER with:
+  /// {'address': <Map<String,dynamic>>, 'paymentMethod': 'cod'|'upi'}
+  Future<void> _showPaymentOptionsAndReturn({
+    required Map<String, dynamic> addressToReturn,
+  }) async {
+    final paymentMethod = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -113,52 +106,42 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
         final localTextTheme = Theme.of(context).textTheme;
         return Padding(
           padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Select Payment Option",
-                style: localTextTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Select Payment Option",
+                  style: localTextTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: const Icon(Icons.money),
-                title: const Text("Cash on Delivery"),
-                onTap: () async {
-                  try {
-                    await FirebaseFirestore.instance
-                        .collection('photo_orders')
-                        .add({
-                      'userId': userId,
-                      'paymentStatus': 'Cash on Delivery',
-                      'timestamp': FieldValue.serverTimestamp(),
-                      // TODO: include more fields if needed (address snapshot, totals, imageUrl, etc.)
-                    });
-
-                    Navigator.pop(context); // close payment sheet
-                    Get.offAllNamed('/home'); // go to Home
-                    _showSuccess('Order placed successfully (COD).');
-                  } catch (e) {
-                    _showError('Failed to place order: $e');
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.qr_code),
-                title: const Text("UPI"),
-                onTap: () {
-                  Navigator.pop(context); // close payment sheet
-                  Get.offAllNamed('/home'); // go to Home
-                  _showSuccess('UPI selected.');
-                },
-              ),
-            ],
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.money),
+                  title: const Text("Cash on Delivery"),
+                  onTap: () => Navigator.pop(context, 'cod'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.qr_code),
+                  title: const Text("UPI"),
+                  onTap: () => Navigator.pop(context, 'upi'),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
     );
+
+    if (!mounted) return;
+    // Close this bottom sheet and return combined result to the caller:
+    Navigator.pop(context, {
+      'address': addressToReturn,
+      'paymentMethod': paymentMethod ?? 'cod', // default to COD
+    });
   }
 
   @override
@@ -173,9 +156,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
             width: double.infinity,
             margin: const EdgeInsets.only(top: 20),
             decoration: const BoxDecoration(
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               color: Colors.white,
             ),
             child:
@@ -192,21 +173,18 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Your Saved Address",
-            style: textTheme?.labelLarge?.copyWith(fontSize: 20),
-          ),
+          Text("Your Saved Address", style: textTheme?.labelLarge?.copyWith(fontSize: 20)),
           const SizedBox(height: 10),
+
+          // Tap card -> choose payment -> RETURN address + payment to caller
           GestureDetector(
-            onTap: () {
-              Navigator.pop(context); // close address sheet
-              showPaymentOptions(context);
+            onTap: () async {
+              final addr = existingAddress ?? {};
+              await _showPaymentOptionsAndReturn(addressToReturn: addr);
             },
             child: Card(
               elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Row(
@@ -230,22 +208,16 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
                           if (existingAddress?['nearbyLandmark'] != null)
                             Text(
                               'Landmark: ${existingAddress?['nearbyLandmark']}',
-                              style: textTheme?.bodyMedium?.copyWith(
-                                color: Colors.black,
-                              ),
+                              style: textTheme?.bodyMedium?.copyWith(color: Colors.black),
                             ),
                           const SizedBox(height: 5),
                           Text(
                             'Name: ${existingAddress?['name'] ?? ''}',
-                            style: textTheme?.bodyMedium?.copyWith(
-                              color: Colors.black,
-                            ),
+                            style: textTheme?.bodyMedium?.copyWith(color: Colors.black),
                           ),
                           Text(
                             'Phone: ${existingAddress?['phone'] ?? ''}',
-                            style: textTheme?.bodyMedium?.copyWith(
-                              color: Colors.black,
-                            ),
+                            style: textTheme?.bodyMedium?.copyWith(color: Colors.black),
                           ),
                         ],
                       ),
@@ -255,17 +227,14 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
               ),
             ),
           ),
+
           const Divider(height: 1, color: Colors.grey),
           Padding(
             padding: const EdgeInsets.only(top: 20.0, bottom: 15),
             child: CustomButton(
               text: "Add New Address",
               borderRadius: 10,
-              onPressed: () {
-                setState(() {
-                  hasAddress = false;
-                });
-              },
+              onPressed: () => setState(() => hasAddress = false),
             ),
           ),
         ],
@@ -279,10 +248,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
       children: [
         Padding(
           padding: const EdgeInsets.all(14),
-          child: Text(
-            "Enter complete address",
-            style: textTheme?.labelLarge?.copyWith(fontSize: 20),
-          ),
+          child: Text("Enter complete address", style: textTheme?.labelLarge?.copyWith(fontSize: 20)),
         ),
         const Divider(height: 1, color: Colors.grey),
         Padding(
@@ -292,9 +258,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
             children: [
               Text(
                 "Who are you ordering for?",
-                style: textTheme?.labelSmall?.copyWith(
-                  color: Colors.grey.withOpacity(0.7),
-                ),
+                style: textTheme?.labelSmall?.copyWith(color: Colors.grey.withOpacity(0.7)),
               ),
               const SizedBox(height: 10),
               Row(
@@ -303,25 +267,13 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
                   orderForButtonWidget(
                     label: "Myself",
                     isSelected: orderFor == OrderFor.myself,
-                    onClick: () {
-                      if (orderFor != OrderFor.myself) {
-                        setState(() {
-                          orderFor = OrderFor.myself;
-                        });
-                      }
-                    },
+                    onClick: () => setState(() => orderFor = OrderFor.myself),
                   ),
                   const SizedBox(width: 25),
                   orderForButtonWidget(
                     label: "Someone else",
                     isSelected: orderFor == OrderFor.someoneElse,
-                    onClick: () {
-                      if (orderFor != OrderFor.someoneElse) {
-                        setState(() {
-                          orderFor = OrderFor.someoneElse;
-                        });
-                      }
-                    },
+                    onClick: () => setState(() => orderFor = OrderFor.someoneElse),
                   ),
                 ],
               ),
@@ -334,15 +286,12 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
                 padding: const EdgeInsets.only(top: 30, bottom: 10),
                 child: Text(
                   "Save address as *",
-                  style: textTheme?.labelSmall?.copyWith(
-                    color: Colors.grey.withOpacity(0.7),
-                  ),
+                  style: textTheme?.labelSmall?.copyWith(color: Colors.grey.withOpacity(0.7)),
                 ),
               ),
               const AddressTypeWidget(),
               AddressWidget(
-                flatHouseFloorBuildingController:
-                    flatHouseFloorBuildingController,
+                flatHouseFloorBuildingController: flatHouseFloorBuildingController,
                 areaSectorLocalityController: areaSectorLocalityController,
                 nearbyLandmarkController: nearbyLandmarkController,
               ),
@@ -386,7 +335,6 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
       borderRadius: 10,
       duration: const Duration(seconds: 4),
     );
-    // Also log to console for debugging
     debugPrint('Error: $message');
   }
 
@@ -409,9 +357,7 @@ class _AddAddressBottomSheetState extends State<AddAddressBottomSheet> {
               padding: const EdgeInsets.only(left: 12),
               child: Text(
                 label,
-                style: textTheme?.labelMedium?.copyWith(
-                  fontSize: 16,
-                ),
+                style: textTheme?.labelMedium?.copyWith(fontSize: 16),
               ),
             ),
           ],

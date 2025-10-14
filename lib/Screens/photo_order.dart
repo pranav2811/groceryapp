@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:groceryapp/widgets/add_address_bottom_sheet.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
 
 class PhotoOrderPage extends StatefulWidget {
   const PhotoOrderPage({super.key});
@@ -21,6 +22,8 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
 
+  bool _placing = false;
+
   @override
   void initState() {
     super.initState();
@@ -28,19 +31,29 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
   }
 
   Future<void> _initializeCamera() async {
-    _cameras = await availableCameras();
-    final backCamera = _cameras?.firstWhere(
-      (camera) => camera.lensDirection == CameraLensDirection.back,
-    );
-
-    if (backCamera != null) {
-      _cameraController = CameraController(
-        backCamera,
-        ResolutionPreset.high,
+    try {
+      _cameras = await availableCameras();
+      final backCamera = _cameras?.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
       );
-
-      await _cameraController?.initialize();
-      setState(() {}); // Update the UI after initialization
+      if (backCamera != null) {
+        _cameraController = CameraController(
+          backCamera,
+          ResolutionPreset.high,
+          enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.jpeg,
+        );
+        await _cameraController?.initialize();
+      }
+    } catch (e) {
+      debugPrint('Camera init error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Camera error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() {});
     }
   }
 
@@ -49,35 +62,37 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
       return;
     }
     try {
-      final XFile photo = await _cameraController!.takePicture();
-      File? croppedFile = await _cropImage(File(photo.path));
-      if (croppedFile != null) {
-        setState(() {
-          _imageFile = croppedFile;
-        });
-      }
+      if (_cameraController!.value.isTakingPicture) return;
+      final XFile x = await _cameraController!.takePicture();
+      final File? cropped = await _cropImage(File(x.path));
+      if (cropped != null) setState(() => _imageFile = cropped);
     } catch (e) {
-      debugPrint('Error taking photo: $e');
+      debugPrint('Take photo error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to take photo: $e')),
+        );
+      }
     }
   }
 
   Future<void> _selectFromGallery() async {
-    final XFile? galleryPhoto = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
-    if (galleryPhoto != null) {
-      File? croppedFile = await _cropImage(File(galleryPhoto.path));
-      if (croppedFile != null) {
-        setState(() {
-          _imageFile = croppedFile;
-        });
+    try {
+      final XFile? x = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+      if (x != null) {
+        final File? cropped = await _cropImage(File(x.path));
+        if (cropped != null) setState(() => _imageFile = cropped);
       }
+    } catch (e) {
+      debugPrint('Gallery pick error: $e');
     }
   }
 
   Future<File?> _cropImage(File imageFile) async {
-    CroppedFile? croppedFile = await ImageCropper().cropImage(
+    final CroppedFile? cropped = await ImageCropper().cropImage(
       sourcePath: imageFile.path,
       uiSettings: [
         AndroidUiSettings(
@@ -87,16 +102,10 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
           initAspectRatio: CropAspectRatioPreset.original,
           lockAspectRatio: false,
         ),
-        IOSUiSettings(
-          title: 'Crop Document',
-        ),
+        IOSUiSettings(title: 'Crop Document'),
       ],
     );
-    if (croppedFile != null) {
-      return File(croppedFile.path);
-    } else {
-      return null;
-    }
+    return cropped != null ? File(cropped.path) : null;
   }
 
   Future<void> _placeOrder() async {
@@ -107,86 +116,134 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
       return;
     }
 
-    // Step 1: Ask for confirmation
-    final shouldProceed = await showDialog<bool>(
+    // Confirm
+    final proceed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (c) => AlertDialog(
         title: const Text('Confirm Order'),
-        content: const Text(
-            'Do you want to place this order with the selected photo?'),
+        content: const Text('Do you want to place this order with the selected photo?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Confirm')),
         ],
       ),
     );
+    if (proceed != true) return;
 
-    if (shouldProceed != true) return;
-
-    // Step 2: Open AddAddressBottomSheet and wait for result
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) {
+    // Auth & address/payment selection
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('User not logged in')),
       );
       return;
     }
 
-    final selectedAddress = await showModalBottomSheet<Map<String, dynamic>>(
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => AddAddressBottomSheet(userId: userId),
+      builder: (_) => AddAddressBottomSheet(userId: user.uid),
     );
+    if (result == null) return;
 
-    if (selectedAddress == null) return;
+    final address = Map<String, dynamic>.from(result['address'] as Map);
+    final paymentMethod = (result['paymentMethod'] as String?) ?? 'cod';
 
-    // Step 3: Upload image and save order
+    setState(() => _placing = true);
+
     try {
-      final timestamp = DateTime.now();
-      final fileName =
-          "photo_order_${userId}_${timestamp.millisecondsSinceEpoch}.jpg";
+      // Determine display name (denormalize)
+      String userName = user.displayName ?? '';
+      if (userName.isEmpty) {
+        try {
+          final u = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+          final d = u.data() ?? {};
+          userName = (d['name'] ?? d['displayName'] ?? user.email ?? user.uid).toString();
+        } catch (_) {
+          userName = user.email ?? user.uid;
+        }
+      }
 
-      final ref =
-          FirebaseStorage.instance.ref().child('photo_orders').child(fileName);
-      await ref.putFile(_imageFile!);
+      // Upload image to Storage with metadata; only proceed if URL is obtained
+      final file = _imageFile!;
+      if (!await file.exists()) {
+        throw 'Captured image file not found.';
+      }
+
+      final ext = p.extension(file.path).toLowerCase();
+      final contentType = ext == '.png'
+          ? 'image/png'
+          : (ext == '.webp' ? 'image/webp' : 'image/jpeg');
+
+      final objectName =
+          'photo_order_${user.uid}_${DateTime.now().millisecondsSinceEpoch}$ext';
+      final ref = FirebaseStorage.instance.ref().child('photo_orders/$objectName');
+
+      final metadata = SettableMetadata(
+        contentType: contentType,
+        customMetadata: {
+          'userId': user.uid,
+          'uploadedAt': DateTime.now().toIso8601String(),
+        },
+      );
+
+      TaskSnapshot snap;
+      try {
+        snap = await ref.putFile(file, metadata);
+        debugPrint('Upload done: ${snap.state} path=${ref.fullPath}');
+      } catch (e) {
+        throw 'Upload failed: $e';
+      }
+
+      // Verify + get URL
+      try {
+        await ref.getMetadata(); // throws if missing/denied
+      } catch (e) {
+        throw 'Upload verify failed: $e';
+      }
+
       final imageUrl = await ref.getDownloadURL();
+      if (imageUrl.isEmpty) {
+        throw 'Could not obtain image URL.';
+      }
 
+      // Write Firestore doc (with server timestamp)
       await FirebaseFirestore.instance.collection('photo_orders').add({
-        'userId': userId,
-        'timestamp': Timestamp.fromDate(timestamp),
-        'address': selectedAddress,
+        'userId': user.uid,
+        'userName': userName,
+        'timestamp': FieldValue.serverTimestamp(),
+        'address': address,
         'imageUrl': imageUrl,
+        'paymentMethod': paymentMethod, // <- from the bottom sheet
+        'status': 'pending',
+        'type': 'photo_order',
       });
 
-      showDialog(
+      if (!mounted) return;
+      await showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (c) => AlertDialog(
           title: const Text('Order Placed'),
           content: const Text('Your photo order has been placed successfully!'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                setState(() {
-                  _imageFile = null;
-                });
-              },
+              onPressed: () => Navigator.of(c).pop(),
               child: const Text('OK'),
             ),
           ],
         ),
       );
+      setState(() => _imageFile = null);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to place order: $e')),
-      );
+      debugPrint('Place order error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to place order: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _placing = false);
     }
   }
 
@@ -197,9 +254,10 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
   }
 
   Widget _buildCameraOverlay() {
+    final ready = _cameraController != null && _cameraController!.value.isInitialized;
     return Stack(
       children: [
-        if (_cameraController != null && _cameraController!.value.isInitialized)
+        if (ready)
           CameraPreview(_cameraController!)
         else
           const Center(child: CircularProgressIndicator()),
@@ -208,7 +266,7 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
           left: 20,
           child: FloatingActionButton(
             onPressed: _selectFromGallery,
-            backgroundColor: Colors.white.withOpacity(0.8),
+            backgroundColor: Colors.white.withOpacity(0.9),
             child: const Icon(Icons.photo_library, color: Colors.black),
           ),
         ),
@@ -227,36 +285,44 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
 
   @override
   Widget build(BuildContext context) {
+    final child = _imageFile == null
+        ? _buildCameraOverlay()
+        : Column(
+            children: [
+              Expanded(
+                child: Image.file(
+                  _imageFile!,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton(
+                  onPressed: _placing ? null : _placeOrder,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    minimumSize: const Size(double.infinity, 50),
+                    textStyle: const TextStyle(fontSize: 18),
+                  ),
+                  child: _placing
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Place Order'),
+                ),
+              ),
+            ],
+          );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Order by Photo'),
         backgroundColor: Colors.deepOrange,
       ),
-      body: _imageFile == null
-          ? _buildCameraOverlay()
-          : Column(
-              children: [
-                Expanded(
-                  child: Image.file(
-                    _imageFile!,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: ElevatedButton(
-                    onPressed: _placeOrder,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      minimumSize: const Size(double.infinity, 50),
-                      textStyle: const TextStyle(fontSize: 18),
-                    ),
-                    child: const Text('Place Order'),
-                  ),
-                ),
-              ],
-            ),
+      body: child,
     );
   }
 }

@@ -1,29 +1,45 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Firestore import
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:groceryapp/Screens/admin_home_screen.dart';
 import 'app/data/local/my_shared_pref.dart';
 import 'app/routes/app_pages.dart';
 import 'config/theme/my_theme.dart';
 import 'config/translations/localization_service.dart';
-import 'package:groceryapp/Screens/login_page.dart'; // Assuming this is your login page
+import 'package:groceryapp/Screens/login_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp();
   FirebaseAppCheck.instance.activate();
-
   await MySharedPref.init();
 
-  User? currentUser = FirebaseAuth.instance.currentUser;
+  runApp(const MyApp());
+}
 
-  runApp(
-    ScreenUtilInit(
+class MyApp extends StatelessWidget {
+  final User? injectedUser;
+  final bool useInjectedOnly;
+
+  const MyApp({super.key})
+      : injectedUser = null,
+        useInjectedOnly = false;
+
+  const MyApp.forTest({super.key, this.injectedUser})
+      : useInjectedOnly = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final User? currentUser =
+        useInjectedOnly ? injectedUser : FirebaseAuth.instance.currentUser;
+
+    return ScreenUtilInit(
       designSize: const Size(390, 844),
       minTextAdapt: true,
       splitScreenMode: true,
@@ -40,12 +56,11 @@ Future<void> main() async {
               : const LoginScreen(),
           getPages: AppPages.routes,
           locale: MySharedPref.getCurrentLocal(),
-          translations:
-              LocalizationService.getInstance(), // Set up localization
+          translations: LocalizationService.getInstance(),
         );
       },
-    ),
-  );
+    );
+  }
 }
 
 class RoleBasedRedirector extends StatelessWidget {
@@ -56,24 +71,17 @@ class RoleBasedRedirector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<DocumentSnapshot>(
-      future:
-          FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+      future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
         if (snapshot.hasError) {
-          return const Scaffold(
-            body: Center(child: Text('Error fetching user data.')),
-          );
+          return const Scaffold(body: Center(child: Text('Error fetching user data.')));
         }
 
-        if (!snapshot.hasData ||
-            snapshot.data == null ||
-            !snapshot.data!.exists) {
+        if (!snapshot.hasData || snapshot.data == null || !snapshot.data!.exists) {
           FirebaseAuth.instance.signOut();
           return const LoginScreen();
         }
@@ -83,12 +91,10 @@ class RoleBasedRedirector extends StatelessWidget {
         if (userData['role'] == 'admin') {
           return const AdminHomeScreen();
         } else {
-          Future.delayed(Duration.zero, () {
+          Future.microtask(() {
             Get.offAllNamed(Routes.base);
           });
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
       },
     );

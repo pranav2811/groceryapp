@@ -12,8 +12,12 @@ import 'package:groceryapp/widgets/add_address_bottom_sheet.dart';
 class CameraViewController extends GetxController {
   late CameraController cameraController;
   List<CameraDescription> cameras = [];
-  var isCameraInitialized = false.obs;
-  var capturedImagePath = ''.obs;
+  final isCameraInitialized = false.obs;
+
+  /// Local path of the last captured image (used by placeOrder)
+  final capturedImagePath = ''.obs;
+
+  /// Spinner while placing order
   final isPlacingOrder = false.obs;
 
   final _auth = FirebaseAuth.instance;
@@ -26,15 +30,42 @@ class CameraViewController extends GetxController {
     await initCamera();
   }
 
+  // ========== Camera ==========
   Future<void> initCamera() async {
     cameras = await availableCameras();
     if (cameras.isNotEmpty) {
-      cameraController = CameraController(cameras[0], ResolutionPreset.high);
+      cameraController = CameraController(
+        cameras.first,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
       await cameraController.initialize();
       isCameraInitialized.value = true;
     }
   }
 
+  /// Capture a photo and store the file path in [capturedImagePath].
+  Future<void> capturePhoto() async {
+    if (!isCameraInitialized.value) {
+      Get.snackbar('Camera', 'Camera is not ready yet.');
+      return;
+    }
+    try {
+      // Ensure camera is not recording etc.
+      if (!cameraController.value.isInitialized ||
+          cameraController.value.isTakingPicture) {
+        return;
+      }
+      final XFile xfile = await cameraController.takePicture();
+      capturedImagePath.value = xfile.path;
+      Get.snackbar('Captured', 'Photo captured successfully.');
+    } catch (e) {
+      Get.snackbar('Capture failed', e.toString());
+    }
+  }
+
+  // ========== Order flow ==========
   Future<void> placeOrder(BuildContext context) async {
     if (capturedImagePath.value.isEmpty) {
       Get.snackbar('Missing photo', 'Please capture a photo first.');
@@ -46,21 +77,23 @@ class CameraViewController extends GetxController {
       return;
     }
 
-    // Confirm
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Confirm Order'),
         content: const Text('Place this order with the selected photo?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm')),
         ],
       ),
     );
     if (confirm != true) return;
 
-    // Pick / add address
     final address = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -72,38 +105,105 @@ class CameraViewController extends GetxController {
     try {
       isPlacingOrder.value = true;
 
-      // Upload
-      final file = File(capturedImagePath.value);
-      final ext = p.extension(file.path);
-      final name = 'photo_order_${user.uid}_${DateTime.now().millisecondsSinceEpoch}$ext';
-      final ref = _storage.ref().child('photo_orders/$name');
-      await ref.putFile(file);
-      final url = await ref.getDownloadURL();
+      // 1) Resolve display name
+      String userName = user.displayName ?? '';
+      if (userName.isEmpty) {
+        final snap = await _firestore.collection('users').doc(user.uid).get();
+        final d = snap.data() ?? {};
+        userName = (d['name'] ?? d['displayName'] ?? user.email ?? user.uid)
+            .toString();
+      }
+      debugPrint('[placeOrder] user=${user.uid}, userName=$userName');
 
-      // Save order
+      // 2) Verify file exists
+      final file = File(capturedImagePath.value);
+      if (!await file.exists()) {
+        debugPrint('[placeOrder] file missing at ${file.path}');
+        Get.snackbar('File missing', 'Captured image file not found on disk.');
+        return;
+      }
+      final ext = p.extension(file.path).toLowerCase();
+      final contentType = ext == '.png'
+          ? 'image/png'
+          : (ext == '.webp' ? 'image/webp' : 'image/jpeg');
+
+      // 3) Build Storage ref
+      final objectName =
+          'photo_order_${user.uid}_${DateTime.now().millisecondsSinceEpoch}$ext';
+      final ref = _storage.ref().child('photo_orders/$objectName');
+      debugPrint('[placeOrder] uploading to ${ref.fullPath}');
+
+      // 4) Upload with metadata
+      final metadata = SettableMetadata(
+        contentType: contentType,
+        customMetadata: {
+          'userId': user.uid,
+          'uploadedAt': DateTime.now().toIso8601String()
+        },
+      );
+
+      TaskSnapshot snap;
+      try {
+        snap = await ref.putFile(file, metadata);
+        debugPrint('[placeOrder] upload state=${snap.state}');
+      } on FirebaseException catch (e) {
+        debugPrint(
+            '[placeOrder] FirebaseException on putFile: code=${e.code} message=${e.message}');
+        Get.snackbar('Upload failed', '${e.code}: ${e.message}');
+        return;
+      } catch (e) {
+        debugPrint('[placeOrder] putFile error: $e');
+        Get.snackbar('Upload failed', e.toString());
+        return;
+      }
+
+      // 5) Verify object and get URL
+      try {
+        final m = await ref.getMetadata();
+        debugPrint('[placeOrder] stored object OK, ct=${m.contentType}');
+      } on FirebaseException catch (e) {
+        debugPrint('[placeOrder] getMetadata failed: ${e.code} ${e.message}');
+        Get.snackbar('Upload verify failed', '${e.code}: ${e.message}');
+        return;
+      }
+
+      String imageUrl;
+      try {
+        imageUrl = await ref.getDownloadURL();
+        debugPrint('[placeOrder] downloadURL=$imageUrl');
+      } on FirebaseException catch (e) {
+        debugPrint(
+            '[placeOrder] getDownloadURL failed: ${e.code} ${e.message}');
+        Get.snackbar('Upload failed', 'Could not get image URL: ${e.code}');
+        return;
+      }
+
+      // 6) Write Firestore doc ONLY after we have a URL
       await _firestore.collection('photo_orders').add({
         'userId': user.uid,
+        'userName': userName,
         'timestamp': FieldValue.serverTimestamp(),
         'address': address,
-        'imageUrl': url,
+        'imageUrl': imageUrl,
         'status': 'pending',
         'type': 'photo_order',
       });
+      debugPrint('[placeOrder] photo_orders doc created');
 
+      // 7) Done
       capturedImagePath.value = '';
-      // Success dialog
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('Order Placed'),
           content: const Text('Your photo order has been placed successfully!'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'))
+          ],
         ),
       );
-      // Optionally navigate to orders screen:
-      // Get.offNamed('/orders');
-    } catch (e) {
-      Get.snackbar('Order failed', e.toString());
     } finally {
       isPlacingOrder.value = false;
     }
@@ -111,7 +211,9 @@ class CameraViewController extends GetxController {
 
   @override
   void onClose() {
-    cameraController.dispose();
+    if (isCameraInitialized.value) {
+      cameraController.dispose();
+    }
     super.onClose();
   }
 }
