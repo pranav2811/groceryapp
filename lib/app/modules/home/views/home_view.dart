@@ -1,4 +1,3 @@
-
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
@@ -7,20 +6,20 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../../../utils/constants.dart';
 import '../../../components/category_item.dart';
 import '../../../components/custom_form_field.dart';
 import '../../../components/custom_icon_button.dart';
 import '../../../components/dark_transition.dart';
-import '../../../components/product_item.dart'; // Import Product model
-// Import ProductModel
+import '../../../components/product_item.dart';
 import '../controllers/home_controller.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({super.key});
 
   String getGreetingMessage() {
-    int hour = DateTime.now().hour;
+    final hour = DateTime.now().hour;
     if (hour < 12 && hour > 5) {
       return 'Good Morning';
     } else if (hour < 17 && hour > 12) {
@@ -32,18 +31,16 @@ class HomeView extends GetView<HomeController> {
 
   Future<String?> fetchUserName() async {
     try {
-      User? user = FirebaseAuth.instance.currentUser;
+      final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        DocumentSnapshot<Map<String, dynamic>> userDoc = await FirebaseFirestore
-            .instance
+        final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
 
         if (userDoc.exists && userDoc.data() != null) {
-          Map<String, dynamic> userData =
-              userDoc.data() as Map<String, dynamic>;
-          return userData['name'];
+          final data = userDoc.data() as Map<String, dynamic>;
+          return data['name']?.toString();
         }
       }
     } catch (e) {
@@ -55,6 +52,7 @@ class HomeView extends GetView<HomeController> {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+
     return DarkTransition(
       offset: Offset(context.width, -1),
       isDark: !controller.isLightTheme,
@@ -73,14 +71,21 @@ class HomeView extends GetView<HomeController> {
               children: [
                 Column(
                   children: [
+                    // Greeting + avatar + theme toggle
                     FutureBuilder<String?>(
                       future: fetchUserName(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const CircularProgressIndicator();
+                          return const Padding(
+                            padding: EdgeInsets.only(top: 24),
+                            child: CircularProgressIndicator(),
+                          );
                         } else if (snapshot.hasError) {
-                          return Text('Error: ${snapshot.error}');
+                          return Padding(
+                            padding: EdgeInsets.only(top: 24.h),
+                            child: Text('Error: ${snapshot.error}'),
+                          );
                         } else if (snapshot.hasData && snapshot.data != null) {
                           return ListTile(
                             contentPadding:
@@ -123,11 +128,21 @@ class HomeView extends GetView<HomeController> {
                             ),
                           );
                         } else {
-                          return const Text('User not found');
+                          return Padding(
+                            padding: EdgeInsets.only(
+                                left: 24.w, right: 24.w, top: 16.h),
+                            child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text('Welcome',
+                                    style: theme.textTheme.titleSmall)),
+                          );
                         }
                       },
                     ),
+
                     10.verticalSpace,
+
+                    // Search
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24.w),
                       child: CustomFormField(
@@ -144,11 +159,16 @@ class HomeView extends GetView<HomeController> {
                         isSearchField: true,
                         keyboardType: TextInputType.text,
                         textInputAction: TextInputAction.search,
-                        prefixIcon: SvgPicture.asset(Constants.searchIcon,
-                            fit: BoxFit.none),
+                        prefixIcon: SvgPicture.asset(
+                          Constants.searchIcon,
+                          fit: BoxFit.none,
+                        ),
                       ),
                     ),
+
                     20.verticalSpace,
+
+                    // Carousel
                     SizedBox(
                       width: double.infinity,
                       height: 158.h,
@@ -168,18 +188,19 @@ class HomeView extends GetView<HomeController> {
                     ),
                   ],
                 ),
+
+                // Body content
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24.w),
                   child: Column(
                     children: [
                       20.verticalSpace,
+
+                      // Categories header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Categories 😋',
-                            style: theme.textTheme.titleSmall,
-                          ),
+                          Text('Categories', style: theme.textTheme.titleSmall),
                           GestureDetector(
                             onTap: () => Get.toNamed('/category'),
                             child: Text(
@@ -192,45 +213,74 @@ class HomeView extends GetView<HomeController> {
                           ),
                         ],
                       ),
+
                       16.verticalSpace,
+
+                      // Categories row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: controller.categories.map((category) {
-                          return CategoryItem(category: category);
-                        }).toList(),
+                        children: controller.categories
+                            .map((c) => CategoryItem(category: c))
+                            .toList(),
                       ),
+
                       20.verticalSpace,
+
+                      // Best selling header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Best selling 🔥',
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          Text(
-                            'See all',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: theme.primaryColor,
-                              fontWeight: FontWeight.normal,
+                          Text('Best selling', style: theme.textTheme.titleSmall),
+                          GestureDetector(
+                            onTap: () => controller.fetchBestSelling(),
+                            child: Text(
+                              'Shuffle',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                color: theme.primaryColor,
+                                fontWeight: FontWeight.normal,
+                              ),
                             ),
                           ),
                         ],
                       ),
+
                       16.verticalSpace,
-                      GridView.builder(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 16.w,
-                          mainAxisSpacing: 16.h,
-                          mainAxisExtent: 214.h,
-                        ),
-                        shrinkWrap: true,
-                        primary: false,
-                        itemCount: controller.products.length,
-                        itemBuilder: (context, index) {
-                          return ProductItem(product: controller.products[index]);
+
+                      // Best selling grid from Firestore (randomized)
+                      GetBuilder<HomeController>(
+                        id: 'BestSelling',
+                        builder: (_) {
+                          if (controller.isLoadingBestSelling) {
+                            return const Center(
+                                child: CircularProgressIndicator());
+                          }
+                          if (controller.bestSelling.isEmpty) {
+                            return Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24.h),
+                              child: Text('No items found',
+                                  style: theme.textTheme.bodyMedium),
+                            );
+                          }
+                          return GridView.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 16.w,
+                              mainAxisSpacing: 16.h,
+                              mainAxisExtent: 214.h,
+                            ),
+                            shrinkWrap: true,
+                            primary: false,
+                            itemCount: controller.bestSelling.length,
+                            itemBuilder: (context, index) {
+                              return ProductItem(
+                                product: controller.bestSelling[index],
+                              );
+                            },
+                          );
                         },
                       ),
+
                       20.verticalSpace,
                     ],
                   ),
