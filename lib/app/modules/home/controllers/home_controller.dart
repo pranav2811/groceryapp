@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,13 +18,18 @@ class _ProductWithCategory {
 }
 
 class HomeController extends GetxController {
-  // Categories (from your existing helper)
+  // Categories
   List<CategoryModel> categories = [];
 
   // Best-selling products fetched from Firestore
   List<ProductModel> bestSelling = [];
-
   bool isLoadingBestSelling = true;
+
+  // Search state
+  bool isSearching = false;
+  String _lastQuery = '';
+  List<ProductModel> searchResults = [];
+  Timer? _debounce; // for onChanged debounce
 
   // Theme
   var isLightTheme = MySharedPref.getThemeIsLight();
@@ -35,12 +41,11 @@ class HomeController extends GetxController {
   void onInit() {
     getCategories();
 
-    // Wait for auth before querying, to satisfy security rules
+    // Wait for auth before querying (satisfy security rules)
     FirebaseAuth.instance.authStateChanges().first.then((user) {
       if (user != null) {
         fetchBestSelling(); // default count=8, poolSize=50, maxPerCategory=2
       } else {
-        // If not signed in yet, you may trigger sign-in flow here or retry later.
         isLoadingBestSelling = false;
         update(['BestSelling']);
       }
@@ -75,7 +80,6 @@ class HomeController extends GetxController {
         final product = _mapDocToProduct(doc);
         if (product == null) continue;
 
-        // Category is parent of 'items' subcollection: /inventory/<category>/items/<doc>
         final category = doc.reference.parent.parent?.id ?? 'uncategorized';
         pool.add(_ProductWithCategory(product, category));
       }
@@ -104,6 +108,95 @@ class HomeController extends GetxController {
     }
   }
 
+  /// Public API from the view: debounce text changes to avoid spamming queries.
+  void onSearchChanged(String text) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      runSearch(text);
+    });
+  }
+
+  /// Public API: handle keyboard "Search" action immediately.
+  Future<void> onSearchSubmitted(String text) => runSearch(text);
+
+  /// Clear current search and show the normal home content again.
+  void clearSearch() {
+    _lastQuery = '';
+    isSearching = false;
+    searchResults = [];
+    update(['Search']);
+  }
+
+  /// Core search logic.
+  /// Fast path: prefix search on 'nameLower' field (recommended to store per item).
+  /// Fallback: fetch a pool and filter client-side by substring.
+  Future<void> runSearch(String query,
+      {int limit = 24, int poolSize = 200}) async {
+    final q = query.trim();
+    _lastQuery = q;
+
+    if (q.isEmpty) {
+      clearSearch();
+      return;
+    }
+
+    isSearching = true;
+    update(['Search']);
+
+    final qLower = q.toLowerCase();
+
+    try {
+      // Try server-side prefix search using 'nameLower'
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('items')
+          .orderBy('nameLower')
+          .startAt([qLower])
+          .endAt(['$qLower\uf8ff'])
+          .limit(limit)
+          .get();
+
+      final mapped = snap.docs
+          .map(_mapDocToProduct)
+          .where((p) => p != null)
+          .cast<ProductModel>()
+          .toList();
+
+      // If nothing came back (or nameLower not present), fallback below.
+      if (mapped.isNotEmpty) {
+        searchResults = mapped;
+        update(['Search']);
+        return;
+      }
+    } catch (e) {
+      // Probably missing index/field; we'll fallback.
+      Get.log('Search fast-path failed (likely missing nameLower index): $e');
+    }
+
+    // Fallback: client-side filter over a larger pool
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('items')
+          .limit(poolSize)
+          .get();
+
+      final pool = snap.docs
+          .map(_mapDocToProduct)
+          .where((p) => p != null)
+          .cast<ProductModel>()
+          .toList();
+
+      searchResults = pool
+          .where((p) => p.name.toLowerCase().contains(qLower))
+          .take(limit)
+          .toList();
+    } catch (e) {
+      Get.log('Search fallback failed: $e');
+      searchResults = [];
+    }
+
+    update(['Search']);
+  }
+
   /// Map Firestore doc → ProductModel (aligns with your current fields)
   ProductModel? _mapDocToProduct(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
@@ -118,7 +211,8 @@ class HomeController extends GetxController {
     final int id = _extractIntId(data, doc.id);
 
     // Description
-    final description = (data['description'] ?? data['desc'] ?? '').toString();
+    final description =
+        (data['description'] ?? data['desc'] ?? '').toString();
 
     // Image: prefer first non-empty from imageUrls[], else 'image'/'imageUrl'
     String image = '';

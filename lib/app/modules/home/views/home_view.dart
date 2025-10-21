@@ -37,7 +37,6 @@ class HomeView extends GetView<HomeController> {
             .collection('users')
             .doc(user.uid)
             .get();
-
         if (userDoc.exists && userDoc.data() != null) {
           final data = userDoc.data() as Map<String, dynamic>;
           return data['name']?.toString();
@@ -132,9 +131,10 @@ class HomeView extends GetView<HomeController> {
                             padding: EdgeInsets.only(
                                 left: 24.w, right: 24.w, top: 16.h),
                             child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text('Welcome',
-                                    style: theme.textTheme.titleSmall)),
+                              alignment: Alignment.centerLeft,
+                              child: Text('Welcome',
+                                  style: theme.textTheme.titleSmall),
+                            ),
                           );
                         }
                       },
@@ -142,7 +142,7 @@ class HomeView extends GetView<HomeController> {
 
                     10.verticalSpace,
 
-                    // Search
+                    // SEARCH BAR — uses CustomFormField API (nullable callbacks)
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24.w),
                       child: CustomFormField(
@@ -156,133 +156,192 @@ class HomeView extends GetView<HomeController> {
                         contentPadding: EdgeInsets.symmetric(
                             vertical: 10.h, horizontal: 10.w),
                         focusedBorderColor: Colors.transparent,
-                        isSearchField: true,
+                        isSearchField: true, // built-in clear (X)
+                        onCanceled: controller.clearSearch, // clear handler
+
                         keyboardType: TextInputType.text,
                         textInputAction: TextInputAction.search,
-                        prefixIcon: SvgPicture.asset(
-                          Constants.searchIcon,
-                          fit: BoxFit.none,
-                        ),
+                        prefixIcon: SvgPicture.asset(Constants.searchIcon,
+                            fit: BoxFit.none),
+
+                        onChanged: (String? v) =>
+                            controller.onSearchChanged(v?.trim() ?? ''),
+                        onFieldSubmit: (String? v) =>
+                            controller.onSearchSubmitted(v?.trim() ?? ''),
                       ),
                     ),
 
                     20.verticalSpace,
 
-                    // Carousel
-                    SizedBox(
-                      width: double.infinity,
-                      height: 158.h,
-                      child: CarouselSlider.builder(
-                        options: CarouselOptions(
-                          initialPage: 1,
-                          viewportFraction: 0.9,
-                          enableInfiniteScroll: true,
-                          autoPlay: true,
-                          autoPlayInterval: const Duration(seconds: 3),
-                        ),
-                        itemCount: controller.cards.length,
-                        itemBuilder: (context, itemIndex, pageViewIndex) {
-                          return Image.asset(controller.cards[itemIndex]);
-                        },
-                      ),
+                    // OFFER IMAGES (Carousel) — ONLY when NOT searching
+                    GetBuilder<HomeController>(
+                      id: 'Search',
+                      builder: (_) {
+                        if (controller.isSearching) {
+                          return const SizedBox.shrink();
+                        }
+                        return SizedBox(
+                          width: double.infinity,
+                          height: 158.h,
+                          child: CarouselSlider.builder(
+                            options: CarouselOptions(
+                              initialPage: 1,
+                              viewportFraction: 0.9,
+                              enableInfiniteScroll: true,
+                              autoPlay: true,
+                              autoPlayInterval: const Duration(seconds: 3),
+                            ),
+                            itemCount: controller.cards.length,
+                            itemBuilder: (context, itemIndex, pageViewIndex) {
+                              return Image.asset(controller.cards[itemIndex]);
+                            },
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
 
-                // Body content
+                // BODY: search results OR normal home content
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24.w),
-                  child: Column(
-                    children: [
-                      20.verticalSpace,
-
-                      // Categories header
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Categories', style: theme.textTheme.titleSmall),
-                          GestureDetector(
-                            onTap: () => Get.toNamed('/category'),
-                            child: Text(
-                              'See all',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                color: theme.primaryColor,
-                                fontWeight: FontWeight.normal,
+                  child: GetBuilder<HomeController>(
+                    id: 'Search',
+                    builder: (_) {
+                      if (controller.isSearching) {
+                        // SEARCH RESULTS
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            20.verticalSpace,
+                            Text('Search results',
+                                style: theme.textTheme.titleSmall),
+                            16.verticalSpace,
+                            if (controller.searchResults.isEmpty)
+                              Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24.h),
+                                child: Text('No results found',
+                                    style: theme.textTheme.bodyMedium),
+                              )
+                            else
+                              GridView.builder(
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 16.w,
+                                  mainAxisSpacing: 16.h,
+                                  mainAxisExtent: 214.h,
+                                ),
+                                shrinkWrap: true,
+                                primary: false,
+                                itemCount: controller.searchResults.length,
+                                itemBuilder: (context, index) {
+                                  return ProductItem(
+                                    product: controller.searchResults[index],
+                                  );
+                                },
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
+                            20.verticalSpace,
+                          ],
+                        );
+                      }
 
-                      16.verticalSpace,
-
-                      // Categories row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: controller.categories
-                            .map((c) => CategoryItem(category: c))
-                            .toList(),
-                      ),
-
-                      20.verticalSpace,
-
-                      // Best selling header
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // NORMAL HOME (Categories + Best selling)
+                      return Column(
                         children: [
-                          Text('Best selling', style: theme.textTheme.titleSmall),
-                          GestureDetector(
-                            onTap: () => controller.fetchBestSelling(),
-                            child: Text(
-                              'Shuffle',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                color: theme.primaryColor,
-                                fontWeight: FontWeight.normal,
+                          20.verticalSpace,
+
+                          // Categories header
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Categories',
+                                  style: theme.textTheme.titleSmall),
+                              GestureDetector(
+                                onTap: () => Get.toNamed('/category'),
+                                child: Text(
+                                  'See all',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: theme.primaryColor,
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
 
-                      16.verticalSpace,
+                          16.verticalSpace,
 
-                      // Best selling grid from Firestore (randomized)
-                      GetBuilder<HomeController>(
-                        id: 'BestSelling',
-                        builder: (_) {
-                          if (controller.isLoadingBestSelling) {
-                            return const Center(
-                                child: CircularProgressIndicator());
-                          }
-                          if (controller.bestSelling.isEmpty) {
-                            return Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24.h),
-                              child: Text('No items found',
-                                  style: theme.textTheme.bodyMedium),
-                            );
-                          }
-                          return GridView.builder(
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 16.w,
-                              mainAxisSpacing: 16.h,
-                              mainAxisExtent: 214.h,
-                            ),
-                            shrinkWrap: true,
-                            primary: false,
-                            itemCount: controller.bestSelling.length,
-                            itemBuilder: (context, index) {
-                              return ProductItem(
-                                product: controller.bestSelling[index],
+                          // Categories row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: controller.categories
+                                .map((c) => CategoryItem(category: c))
+                                .toList(),
+                          ),
+
+                          20.verticalSpace,
+
+                          // Best selling header
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Best selling',
+                                  style: theme.textTheme.titleSmall),
+                              GestureDetector(
+                                onTap: () => controller.fetchBestSelling(),
+                                child: Text(
+                                  'Shuffle',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    color: theme.primaryColor,
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          16.verticalSpace,
+
+                          // Best selling grid from Firestore (randomized with per-category cap)
+                          GetBuilder<HomeController>(
+                            id: 'BestSelling',
+                            builder: (_) {
+                              if (controller.isLoadingBestSelling) {
+                                return const Center(
+                                    child: CircularProgressIndicator());
+                              }
+                              if (controller.bestSelling.isEmpty) {
+                                return Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24.h),
+                                  child: Text('No items found',
+                                      style: theme.textTheme.bodyMedium),
+                                );
+                              }
+                              return GridView.builder(
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 16.w,
+                                  mainAxisSpacing: 16.h,
+                                  mainAxisExtent: 214.h,
+                                ),
+                                shrinkWrap: true,
+                                primary: false,
+                                itemCount: controller.bestSelling.length,
+                                itemBuilder: (context, index) {
+                                  return ProductItem(
+                                    product: controller.bestSelling[index],
+                                  );
+                                },
                               );
                             },
-                          );
-                        },
-                      ),
+                          ),
 
-                      20.verticalSpace,
-                    ],
+                          20.verticalSpace,
+                        ],
+                      );
+                    },
                   ),
                 ),
               ],
