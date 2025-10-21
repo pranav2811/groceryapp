@@ -10,7 +10,7 @@ import '../../../data/models/category_model.dart';
 import '../../../data/models/product_model.dart';
 import '../../../../utils/dummy_helper.dart';
 
-/// Internal helper to keep track of category along with product
+/// Helper to carry category with a product (for per-category cap)
 class _ProductWithCategory {
   final ProductModel product;
   final String category;
@@ -18,10 +18,10 @@ class _ProductWithCategory {
 }
 
 class HomeController extends GetxController {
-  // Categories
+  // Categories (dummy for now)
   List<CategoryModel> categories = [];
 
-  // Best-selling products fetched from Firestore
+  // Best-selling products (from Firestore, randomized with per-category cap)
   List<ProductModel> bestSelling = [];
   bool isLoadingBestSelling = true;
 
@@ -29,22 +29,22 @@ class HomeController extends GetxController {
   bool isSearching = false;
   String _lastQuery = '';
   List<ProductModel> searchResults = [];
-  Timer? _debounce; // for onChanged debounce
+  Timer? _debounce;
 
   // Theme
   var isLightTheme = MySharedPref.getThemeIsLight();
 
-  // Cards
+  // Offer images
   var cards = [Constants.card1, Constants.card2, Constants.card3];
 
   @override
   void onInit() {
     getCategories();
 
-    // Wait for auth before querying (satisfy security rules)
+    // Ensure signed-in before Firestore queries (to satisfy rules)
     FirebaseAuth.instance.authStateChanges().first.then((user) {
       if (user != null) {
-        fetchBestSelling(); // default count=8, poolSize=50, maxPerCategory=2
+        fetchBestSelling(); // default params
       } else {
         isLoadingBestSelling = false;
         update(['BestSelling']);
@@ -58,8 +58,7 @@ class HomeController extends GetxController {
     categories = DummyHelper.categories;
   }
 
-  /// Fetch a random-ish set of products from collectionGroup('items').
-  /// Enforces a per-category cap (maxPerCategory) for variety.
+  /// Fetch a random-ish set from collectionGroup('items') with a per-category cap.
   Future<void> fetchBestSelling({
     int count = 8,
     int poolSize = 50,
@@ -74,17 +73,14 @@ class HomeController extends GetxController {
           .limit(poolSize)
           .get();
 
-      // Map to (product, category)
       final pool = <_ProductWithCategory>[];
       for (final doc in snap.docs) {
         final product = _mapDocToProduct(doc);
         if (product == null) continue;
-
         final category = doc.reference.parent.parent?.id ?? 'uncategorized';
         pool.add(_ProductWithCategory(product, category));
       }
 
-      // Shuffle, then pick with per-category cap
       pool.shuffle();
       final picked = <ProductModel>[];
       final perCatCount = <String, int>{};
@@ -93,7 +89,6 @@ class HomeController extends GetxController {
         if (picked.length >= count) break;
         final used = perCatCount[it.category] ?? 0;
         if (used >= maxPerCategory) continue;
-
         picked.add(it.product);
         perCatCount[it.category] = used + 1;
       }
@@ -108,18 +103,20 @@ class HomeController extends GetxController {
     }
   }
 
-  /// Public API from the view: debounce text changes to avoid spamming queries.
+  // -------------------- Search APIs (debounce + dedupe) --------------------
+
   void onSearchChanged(String text) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
-      runSearch(text);
+      onSearchSubmitted(text); // funnel through a single path
     });
   }
 
-  /// Public API: handle keyboard "Search" action immediately.
-  Future<void> onSearchSubmitted(String text) => runSearch(text);
+  Future<void> onSearchSubmitted(String text) async {
+    _debounce?.cancel();
+    await runSearch(text);
+  }
 
-  /// Clear current search and show the normal home content again.
   void clearSearch() {
     _lastQuery = '';
     isSearching = false;
@@ -127,49 +124,72 @@ class HomeController extends GetxController {
     update(['Search']);
   }
 
-  /// Core search logic.
-  /// Fast path: prefix search on 'nameLower' field (recommended to store per item).
-  /// Fallback: fetch a pool and filter client-side by substring.
   Future<void> runSearch(String query,
       {int limit = 24, int poolSize = 200}) async {
     final q = query.trim();
-    _lastQuery = q;
-
     if (q.isEmpty) {
       clearSearch();
       return;
     }
 
+    // Skip redundant searches
+    if (q == _lastQuery && searchResults.isNotEmpty) {
+      isSearching = true;
+      update(['Search']);
+      return;
+    }
+    _lastQuery = q;
     isSearching = true;
     update(['Search']);
 
     final qLower = q.toLowerCase();
 
+    List<ProductModel> _mapAndDedupe(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    ) {
+      final seenPaths = <String>{};
+      final seenKeys = <String>{}; // nameLower::category
+      final results = <ProductModel>[];
+
+      for (final d in docs) {
+        final path = d.reference.path;
+        if (!seenPaths.add(path)) continue;
+
+        final data = d.data();
+        final nameLower = (data['nameLower'] ?? data['name'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        if (nameLower.isEmpty) continue;
+
+        final category = d.reference.parent.parent?.id ?? 'uncategorized';
+        final key = '$nameLower::$category';
+        if (!seenKeys.add(key)) continue;
+
+        final p = _mapDocToProduct(d);
+        if (p != null) results.add(p);
+      }
+      return results;
+    }
+
+    // Fast path: server-side prefix search on nameLower
     try {
-      // Try server-side prefix search using 'nameLower'
       final snap = await FirebaseFirestore.instance
           .collectionGroup('items')
           .orderBy('nameLower')
           .startAt([qLower])
           .endAt(['$qLower\uf8ff'])
-          .limit(limit)
+          .limit(limit * 3) // fetch extra to allow dedupe
           .get();
 
-      final mapped = snap.docs
-          .map(_mapDocToProduct)
-          .where((p) => p != null)
-          .cast<ProductModel>()
-          .toList();
-
-      // If nothing came back (or nameLower not present), fallback below.
+      final mapped = _mapAndDedupe(snap.docs);
       if (mapped.isNotEmpty) {
-        searchResults = mapped;
+        searchResults = mapped.take(limit).toList();
         update(['Search']);
         return;
       }
     } catch (e) {
-      // Probably missing index/field; we'll fallback.
-      Get.log('Search fast-path failed (likely missing nameLower index): $e');
+      Get.log('Search fast-path failed (likely missing index/field): $e');
     }
 
     // Fallback: client-side filter over a larger pool
@@ -179,12 +199,7 @@ class HomeController extends GetxController {
           .limit(poolSize)
           .get();
 
-      final pool = snap.docs
-          .map(_mapDocToProduct)
-          .where((p) => p != null)
-          .cast<ProductModel>()
-          .toList();
-
+      final pool = _mapAndDedupe(snap.docs);
       searchResults = pool
           .where((p) => p.name.toLowerCase().contains(qLower))
           .take(limit)
@@ -197,24 +212,20 @@ class HomeController extends GetxController {
     update(['Search']);
   }
 
-  /// Map Firestore doc → ProductModel (aligns with your current fields)
+  // -------------------- Mapping helpers --------------------
+
   ProductModel? _mapDocToProduct(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data();
 
-    // Name (required)
     final name = (data['name'] ?? data['title'] ?? '').toString().trim();
     if (name.isEmpty) return null;
 
-    // ID (int) — prefer explicit numeric 'id'; else try parse; else derive
     final int id = _extractIntId(data, doc.id);
 
-    // Description
-    final description =
-        (data['description'] ?? data['desc'] ?? '').toString();
+    final description = (data['description'] ?? data['desc'] ?? '').toString();
 
-    // Image: prefer first non-empty from imageUrls[], else 'image'/'imageUrl'
     String image = '';
     final rawList = data['imageUrls'];
     if (rawList is List) {
@@ -226,13 +237,11 @@ class HomeController extends GetxController {
       image = (data['image'] ?? data['imageUrl'] ?? '').toString();
     }
 
-    // Quantity (optional → default 0)
     int quantity = 0;
     final rawQty = data['quantity'];
     if (rawQty is num) quantity = rawQty.toInt();
     if (rawQty is String) quantity = int.tryParse(rawQty) ?? 0;
 
-    // Price (double)
     double price = 0.0;
     final rawPrice = data['price'];
     if (rawPrice is num) price = rawPrice.toDouble();
@@ -248,7 +257,6 @@ class HomeController extends GetxController {
     );
   }
 
-  /// Best-effort extraction of an integer ID.
   int _extractIntId(Map<String, dynamic> data, String docId) {
     final v = data['id'];
     if (v is int) return v;
@@ -257,11 +265,12 @@ class HomeController extends GetxController {
       final parsed = int.tryParse(v);
       if (parsed != null) return parsed;
     }
-    // Fallback: derive from docId (hashCode is sufficient for UI identity).
+    // Fallback: derived from docId (sufficient for UI identity)
     return docId.hashCode;
   }
 
-  /// Theme toggle
+  // -------------------- Theme toggle --------------------
+
   void onChangeThemePressed() {
     MyTheme.changeTheme();
     isLightTheme = MySharedPref.getThemeIsLight();
