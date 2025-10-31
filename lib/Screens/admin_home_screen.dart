@@ -8,6 +8,7 @@ import 'package:groceryapp/Screens/admin_order_page.dart';
 import 'package:groceryapp/Screens/admin_upload_csv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:groceryapp/Screens/admin_category_page.dart';
+import 'package:groceryapp/Screens/admin_offer_upload_page.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -20,23 +21,27 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _selectedIndex = 0;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final List<Widget> _pages = [];
-  List<String> _categories = []; // List to hold category names (document IDs)
-  String? _selectedCategory; // Variable to hold the selected category
+  late List<Widget> _pages;              // <— late, will be set in initState
+  List<String> _categories = [];
+  String? _selectedCategory;
 
   @override
   void initState() {
     super.initState();
-    _fetchCategories(); // Fetch categories from Firestore on initialization
-    _pages.add(_buildInventoryPage());
-    _pages.add(AdminUploadCSVPage());
-    _pages.add(AdminOrderPage());
-    _pages.add(AdminCategoryScreen());
+    _fetchCategories();
+
+    // build all pages here so length always == bottom nav length
+    _pages = [
+      _buildInventoryPage(),
+      const AdminUploadCSVPage(),
+      const AdminOrderPage(),
+      const AdminCategoryScreen(),
+      const AdminOfferUploadPage(),
+    ];
   }
 
   void _fetchCategories() async {
-    // Fetch categories from Firestore (assuming each category is a document ID)
-    QuerySnapshot snapshot = await _firestore.collection('inventory').get();
+    final snapshot = await _firestore.collection('inventory').get();
     setState(() {
       _categories = snapshot.docs.map((doc) => doc.id).toList();
     });
@@ -82,16 +87,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 const SizedBox(height: 10),
                 TextField(
                   decoration: const InputDecoration(hintText: 'Item Name'),
-                  onChanged: (value) {
-                    itemName = value;
-                  },
+                  onChanged: (value) => itemName = value,
                 ),
                 TextField(
                   decoration: const InputDecoration(hintText: 'Price'),
                   keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    price = value;
-                  },
+                  onChanged: (value) => price = value,
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -109,12 +110,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      backgroundColor: const Color.fromARGB(255, 222, 186, 248),
-                      foregroundColor: Colors.white),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    backgroundColor: const Color.fromARGB(255, 222, 186, 248),
+                    foregroundColor: Colors.white,
+                  ),
                   onPressed: () async {
-                    final ImagePicker picker = ImagePicker();
+                    final picker = ImagePicker();
                     image = await picker.pickImage(source: ImageSource.gallery);
                   },
                   child: const Text('Upload Image'),
@@ -125,16 +127,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 222, 186, 248),
-                  foregroundColor: Colors.white),
+                backgroundColor: const Color.fromARGB(255, 222, 186, 248),
+                foregroundColor: Colors.white,
+              ),
               onPressed: () async {
                 if (itemName.isNotEmpty &&
                     price.isNotEmpty &&
                     image != null &&
                     _selectedCategory != null) {
-                  String imageUrl = await _uploadImageToStorage(image!);
+                  final imageUrl = await _uploadImageToStorage(image!);
 
-                  // Add item under the selected category
                   await _firestore
                       .collection('inventory')
                       .doc(_selectedCategory)
@@ -144,10 +146,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     'price': price,
                     'stock': stock,
                     'imageUrl': imageUrl,
-                    'count': 1, // Default count when adding
+                    'count': 1,
                   });
 
-                  Navigator.of(context).pop();
+                  if (context.mounted) Navigator.of(context).pop();
                 }
               },
               child: const Text('Add'),
@@ -182,17 +184,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 TextField(
                   decoration: const InputDecoration(hintText: 'Item Name'),
                   controller: TextEditingController(text: itemName),
-                  onChanged: (value) {
-                    itemName = value;
-                  },
+                  onChanged: (value) => itemName = value,
                 ),
                 TextField(
                   decoration: const InputDecoration(hintText: 'Price'),
                   keyboardType: TextInputType.number,
                   controller: TextEditingController(text: price),
-                  onChanged: (value) {
-                    price = value;
-                  },
+                  onChanged: (value) => price = value,
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -210,12 +208,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      backgroundColor: const Color.fromARGB(255, 222, 186, 248),
-                      foregroundColor: Colors.white),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    backgroundColor: const Color.fromARGB(255, 222, 186, 248),
+                    foregroundColor: Colors.white,
+                  ),
                   onPressed: () async {
-                    final ImagePicker picker = ImagePicker();
+                    final picker = ImagePicker();
                     image = await picker.pickImage(source: ImageSource.gallery);
                   },
                   child: const Text('Upload New Image'),
@@ -226,7 +225,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red, foregroundColor: Colors.white),
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
               onPressed: () async {
                 await _firestore
                     .collection('inventory')
@@ -234,14 +235,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     .collection('items')
                     .doc(doc.id)
                     .delete();
-                Navigator.of(context).pop();
+                if (context.mounted) Navigator.of(context).pop();
               },
               child: const Text('Delete'),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 222, 186, 248),
-                  foregroundColor: Colors.white),
+                backgroundColor: const Color.fromARGB(255, 222, 186, 248),
+                foregroundColor: Colors.white,
+              ),
               onPressed: () async {
                 String? imageUrl = doc['imageUrl'];
                 if (image != null) {
@@ -260,7 +262,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   'imageUrl': imageUrl,
                 });
 
-                Navigator.of(context).pop();
+                if (context.mounted) Navigator.of(context).pop();
               },
               child: const Text('Update'),
             ),
@@ -278,9 +280,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.data!.docs.isEmpty) {
-          return const Center(
-            child: Text('No categories available'),
-          );
+          return const Center(child: Text('No categories available'));
         }
 
         return ListView(
@@ -300,9 +300,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                       return const Center(child: CircularProgressIndicator());
                     }
                     if (itemSnapshot.data!.docs.isEmpty) {
-                      return const Center(
-                        child: Text('No items in this category'),
-                      );
+                      return const Center(child: Text('No items in this category'));
                     }
 
                     return Column(
@@ -316,11 +314,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                               if (data != null &&
                                   data.containsKey('imageUrls') &&
                                   (data['imageUrls'] as List).isNotEmpty) {
-                                List<String> imageList =
+                                final imageList =
                                     List<String>.from(data['imageUrls']);
-
                                 return SizedBox(
-                                  width: 100, // Adjust width as needed
+                                  width: 100,
                                   height: 100,
                                   child: CarouselSlider(
                                     options: CarouselOptions(
@@ -336,20 +333,28 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                                   ),
                                 );
                               } else {
-                                return Image.asset('assets/placeholder.jpg',
-                                    width: 100, height: 100);
+                                return Image.asset(
+                                  'assets/placeholder.jpg',
+                                  width: 100,
+                                  height: 100,
+                                );
                               }
                             })(),
-                            title: Text((itemDoc.data()
-                                    as Map<String, dynamic>?)?['name'] ??
-                                'No Name'),
+                            title: Text(
+                              (itemDoc.data()
+                                          as Map<String, dynamic>?)?['name'] ??
+                                  'No Name',
+                            ),
                             subtitle: Text(
-                                'Price: ${(itemDoc.data() as Map<String, dynamic>?)?['price'] ?? 'N/A'}'),
-                            trailing: Text(((itemDoc.data()
-                                        as Map<String, dynamic>?)?['stock'] ??
-                                    false)
-                                ? 'In Stock'
-                                : 'Out of Stock'),
+                              'Price: ${(itemDoc.data() as Map<String, dynamic>?)?['price'] ?? 'N/A'}',
+                            ),
+                            trailing: Text(
+                              ((itemDoc.data()
+                                              as Map<String, dynamic>?)?['stock'] ??
+                                      false)
+                                  ? 'In Stock'
+                                  : 'Out of Stock',
+                            ),
                             onTap: () =>
                                 _editItemDialog(itemDoc, categoryDoc.id),
                           ),
@@ -374,7 +379,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
+        items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.inventory_2),
             label: 'Inventory',
@@ -388,12 +393,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             label: 'Orders',
           ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.category), label: 'Categories'),
+            icon: Icon(Icons.category),
+            label: 'Categories',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_offer),
+            label: 'Offers',
+          ),
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: Colors.deepPurple, // Customize selected item color
-        unselectedItemColor: Colors.grey, // Customize unselected item color
+        selectedItemColor: Colors.deepPurple,
+        unselectedItemColor: Colors.grey,
         backgroundColor: Colors.white,
       ),
       floatingActionButton: _selectedIndex == 0
