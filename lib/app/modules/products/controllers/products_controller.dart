@@ -27,7 +27,7 @@ class ProductsController extends GetxController {
     final data = doc.data();
 
     // 1) Image: pick first non-empty from imageUrls, else fallback to 'image'/'imageUrl'
-    String _pickImage(Map<String, dynamic> d) {
+    String pickImage(Map<String, dynamic> d) {
       final rawList = d['imageUrls'];
       if (rawList is List && rawList.isNotEmpty) {
         // take first non-empty string
@@ -54,7 +54,7 @@ class ProductsController extends GetxController {
 
     return ProductModel(
       id: id,
-      image: _pickImage(data),
+      image: pickImage(data),
       name: name,
       description: description,
       quantity: quantity,

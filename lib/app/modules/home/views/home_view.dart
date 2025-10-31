@@ -33,10 +33,8 @@ class HomeView extends GetView<HomeController> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+        final userDoc =
+            await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
         if (userDoc.exists && userDoc.data() != null) {
           final data = userDoc.data() as Map<String, dynamic>;
           return data['name']?.toString();
@@ -74,8 +72,7 @@ class HomeView extends GetView<HomeController> {
                     FutureBuilder<String?>(
                       future: fetchUserName(),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Padding(
                             padding: EdgeInsets.only(top: 24),
                             child: CircularProgressIndicator(),
@@ -87,12 +84,10 @@ class HomeView extends GetView<HomeController> {
                           );
                         } else if (snapshot.hasData && snapshot.data != null) {
                           return ListTile(
-                            contentPadding:
-                                EdgeInsets.symmetric(horizontal: 24.w),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 24.w),
                             title: Text(
                               '${getGreetingMessage()},',
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(fontSize: 12.sp),
+                              style: theme.textTheme.bodySmall?.copyWith(fontSize: 12.sp),
                             ),
                             subtitle: Text(
                               snapshot.data!,
@@ -111,8 +106,7 @@ class HomeView extends GetView<HomeController> {
                               ),
                             ),
                             trailing: CustomIconButton(
-                              onPressed: () =>
-                                  controller.onChangeThemePressed(),
+                              onPressed: () => controller.onChangeThemePressed(),
                               backgroundColor: theme.primaryColorDark,
                               icon: GetBuilder<HomeController>(
                                 id: 'Theme',
@@ -128,12 +122,11 @@ class HomeView extends GetView<HomeController> {
                           );
                         } else {
                           return Padding(
-                            padding: EdgeInsets.only(
-                                left: 24.w, right: 24.w, top: 16.h),
+                            padding: EdgeInsets.only(left: 24.w, right: 24.w, top: 16.h),
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: Text('Welcome',
-                                  style: theme.textTheme.titleSmall),
+                              child:
+                                  Text('Welcome', style: theme.textTheme.titleSmall),
                             ),
                           );
                         }
@@ -142,7 +135,7 @@ class HomeView extends GetView<HomeController> {
 
                     10.verticalSpace,
 
-                    // SEARCH BAR — uses CustomFormField API (nullable callbacks)
+                    // SEARCH BAR
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 24.w),
                       child: CustomFormField(
@@ -153,17 +146,15 @@ class HomeView extends GetView<HomeController> {
                         hintColor: theme.hintColor,
                         maxLines: 1,
                         borderRound: 60.r,
-                        contentPadding: EdgeInsets.symmetric(
-                            vertical: 10.h, horizontal: 10.w),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 10.h, horizontal: 10.w),
                         focusedBorderColor: Colors.transparent,
-                        isSearchField: true, // built-in clear (X)
-                        onCanceled: controller.clearSearch, // clear handler
-
+                        isSearchField: true,
+                        onCanceled: controller.clearSearch,
                         keyboardType: TextInputType.text,
                         textInputAction: TextInputAction.search,
-                        prefixIcon: SvgPicture.asset(Constants.searchIcon,
-                            fit: BoxFit.none),
-
+                        prefixIcon:
+                            SvgPicture.asset(Constants.searchIcon, fit: BoxFit.none),
                         onChanged: (String? v) =>
                             controller.onSearchChanged(v?.trim() ?? ''),
                         onFieldSubmit: (String? v) =>
@@ -173,27 +164,47 @@ class HomeView extends GetView<HomeController> {
 
                     20.verticalSpace,
 
-                    // OFFER IMAGES (Carousel) — ONLY when NOT searching
+                    // OFFERS CAROUSEL (from Firestore) — hidden while searching
                     GetBuilder<HomeController>(
                       id: 'Search',
                       builder: (_) {
                         if (controller.isSearching) {
                           return const SizedBox.shrink();
                         }
+
+                        final hasRemote = controller.offerImages.isNotEmpty;
+                        final items = hasRemote
+                            ? controller.offerImages
+                            : [Constants.card1, Constants.card2, Constants.card3];
+
                         return SizedBox(
                           width: double.infinity,
                           height: 158.h,
                           child: CarouselSlider.builder(
                             options: CarouselOptions(
-                              initialPage: 1,
+                              initialPage: 0,
                               viewportFraction: 0.9,
-                              enableInfiniteScroll: true,
-                              autoPlay: true,
+                              enableInfiniteScroll: items.length > 1,
+                              autoPlay: items.length > 1,
                               autoPlayInterval: const Duration(seconds: 3),
                             ),
-                            itemCount: controller.cards.length,
+                            itemCount: items.length,
                             itemBuilder: (context, itemIndex, pageViewIndex) {
-                              return Image.asset(controller.cards[itemIndex]);
+                              final src = items[itemIndex];
+                              if (hasRemote) {
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    src,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Center(
+                                      child: Icon(Icons.broken_image),
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                return Image.asset(src);
+                              }
                             },
                           ),
                         );
@@ -202,7 +213,7 @@ class HomeView extends GetView<HomeController> {
                   ],
                 ),
 
-                // BODY: search results OR normal home content
+                // BODY
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24.w),
                   child: GetBuilder<HomeController>(
@@ -214,8 +225,7 @@ class HomeView extends GetView<HomeController> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             20.verticalSpace,
-                            Text('Search results',
-                                style: theme.textTheme.titleSmall),
+                            Text('Search results', style: theme.textTheme.titleSmall),
                             16.verticalSpace,
                             if (controller.searchResults.isEmpty)
                               Padding(
@@ -246,7 +256,7 @@ class HomeView extends GetView<HomeController> {
                         );
                       }
 
-                      // NORMAL HOME (Categories + Best selling)
+                      // NORMAL HOME
                       return Column(
                         children: [
                           20.verticalSpace,
@@ -255,8 +265,7 @@ class HomeView extends GetView<HomeController> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Categories',
-                                  style: theme.textTheme.titleSmall),
+                              Text('Categories', style: theme.textTheme.titleSmall),
                               GestureDetector(
                                 onTap: () => Get.toNamed('/category'),
                                 child: Text(
@@ -286,8 +295,7 @@ class HomeView extends GetView<HomeController> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Best selling',
-                                  style: theme.textTheme.titleSmall),
+                              Text('Best selling', style: theme.textTheme.titleSmall),
                               GestureDetector(
                                 onTap: () => controller.fetchBestSelling(),
                                 child: Text(
@@ -303,7 +311,6 @@ class HomeView extends GetView<HomeController> {
 
                           16.verticalSpace,
 
-                          // Best selling grid from Firestore (randomized with per-category cap)
                           GetBuilder<HomeController>(
                             id: 'BestSelling',
                             builder: (_) {
