@@ -22,7 +22,7 @@ class ProductsController extends GetxController {
       final mapped = snap.docs.map((doc) {
         final product = _mapDocToProduct(doc);
 
-        // keep the full list AS-IS (no filtering)
+        // keep the full list AS-IS (no filtering) for details page
         final data = doc.data();
         final rawList = data['imageUrls'];
         final allImages = (rawList is List)
@@ -44,13 +44,28 @@ class ProductsController extends GetxController {
       QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
 
+    // for the GRID CARD: skip the 1st image if imageUrls has >1
     String pickImage(Map<String, dynamic> d) {
       final rawList = d['imageUrls'];
+
       if (rawList is List && rawList.isNotEmpty) {
-        for (final v in rawList) {
-          if (v is String && v.trim().isNotEmpty) return v.trim();
+        // normalize
+        final urls = rawList.map((e) => (e ?? '').toString().trim()).toList();
+
+        // try after first (to skip disclaimer)
+        if (urls.length > 1) {
+          for (var i = 1; i < urls.length; i++) {
+            if (urls[i].isNotEmpty) return urls[i];
+          }
+        }
+
+        // fallback to first non-empty
+        for (final u in urls) {
+          if (u.isNotEmpty) return u;
         }
       }
+
+      // final fallback: single image / old schema
       final alt = (d['image'] ?? d['imageUrl'] ?? '').toString().trim();
       return alt;
     }
@@ -64,7 +79,7 @@ class ProductsController extends GetxController {
 
     return ProductModel(
       id: id,
-      image: pickImage(data),
+      image: pickImage(data), // already skips disclaimer
       name: name,
       description: description,
       quantity: quantity,

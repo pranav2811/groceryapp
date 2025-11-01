@@ -242,12 +242,19 @@ class HomeController extends GetxController {
 
     final description = (data['description'] ?? data['desc'] ?? '').toString();
 
+    // image: prefer imageUrls but skip the first (disclaimer)
     String image = '';
     final rawList = data['imageUrls'];
-    if (rawList is List) {
-      image = rawList
-          .map((e) => (e ?? '').toString())
-          .firstWhere((u) => u.isNotEmpty, orElse: () => '');
+    if (rawList is List && rawList.isNotEmpty) {
+      // normalize to strings
+      final urls = rawList.map((e) => (e ?? '').toString()).toList();
+      // try to use any after the first
+      final rest = urls.length > 1 ? urls.sublist(1) : const <String>[];
+      image = rest.firstWhere((u) => u.isNotEmpty, orElse: () => '');
+      // if nothing valid after skipping, fall back to original first
+      if (image.isEmpty) {
+        image = urls.firstWhere((u) => u.isNotEmpty, orElse: () => '');
+      }
     }
     if (image.isEmpty) {
       image = (data['image'] ?? data['imageUrl'] ?? '').toString();
