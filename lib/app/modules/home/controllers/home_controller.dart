@@ -4,13 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../../config/theme/my_theme.dart';
-import '../../../../utils/constants.dart';
 import '../../../data/local/my_shared_pref.dart';
 import '../../../data/models/category_model.dart';
 import '../../../data/models/product_model.dart';
 import '../../../../utils/dummy_helper.dart';
 
-/// Helper to carry category with a product (for per-category cap)
 class _ProductWithCategory {
   final ProductModel product;
   final String category;
@@ -18,14 +16,14 @@ class _ProductWithCategory {
 }
 
 class HomeController extends GetxController {
-  // Categories (dummy for now)
+  // Categories
   List<CategoryModel> categories = [];
 
-  // Best-selling products (from Firestore, randomized with per-category cap)
+  // Best-selling
   List<ProductModel> bestSelling = [];
   bool isLoadingBestSelling = true;
 
-  // Search state
+  // Search
   bool isSearching = false;
   String _lastQuery = '';
   List<ProductModel> searchResults = [];
@@ -34,17 +32,17 @@ class HomeController extends GetxController {
   // Theme
   var isLightTheme = MySharedPref.getThemeIsLight();
 
-  // Offer images
-  var cards = [Constants.card1, Constants.card2, Constants.card3];
+  // Offer images from Firestore
+  List<String> offerImages = [];
 
   @override
   void onInit() {
     getCategories();
+    _listenOffers();
 
-    // Ensure signed-in before Firestore queries (to satisfy rules)
     FirebaseAuth.instance.authStateChanges().first.then((user) {
       if (user != null) {
-        fetchBestSelling(); // default params
+        fetchBestSelling();
       } else {
         isLoadingBestSelling = false;
         update(['BestSelling']);
@@ -58,7 +56,25 @@ class HomeController extends GetxController {
     categories = DummyHelper.categories;
   }
 
-  /// Fetch a random-ish set from collectionGroup('items') with a per-category cap.
+  void _listenOffers() {
+    FirebaseFirestore.instance
+        .collection('offers')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .listen((snap) {
+      final imgs = <String>[];
+      for (final d in snap.docs) {
+        final data = d.data();
+        final url = (data['imageUrl'] ?? '').toString().trim();
+        if (url.isNotEmpty) {
+          imgs.add(url);
+        }
+      }
+      offerImages = imgs;
+      update(['Search']); // same GetBuilder used for carousel
+    });
+  }
+
   Future<void> fetchBestSelling({
     int count = 8,
     int poolSize = 50,
@@ -82,6 +98,7 @@ class HomeController extends GetxController {
       }
 
       pool.shuffle();
+
       final picked = <ProductModel>[];
       final perCatCount = <String, int>{};
 
@@ -103,12 +120,12 @@ class HomeController extends GetxController {
     }
   }
 
-  // -------------------- Search APIs (debounce + dedupe) --------------------
+  // -------------------- Search --------------------
 
   void onSearchChanged(String text) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
-      onSearchSubmitted(text); // funnel through a single path
+      onSearchSubmitted(text);
     });
   }
 
@@ -132,7 +149,6 @@ class HomeController extends GetxController {
       return;
     }
 
-    // Skip redundant searches
     if (q == _lastQuery && searchResults.isNotEmpty) {
       isSearching = true;
       update(['Search']);
@@ -144,11 +160,11 @@ class HomeController extends GetxController {
 
     final qLower = q.toLowerCase();
 
-    List<ProductModel> _mapAndDedupe(
+    List<ProductModel> mapAndDedupe(
       List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
     ) {
       final seenPaths = <String>{};
-      final seenKeys = <String>{}; // nameLower::category
+      final seenKeys = <String>{};
       final results = <ProductModel>[];
 
       for (final d in docs) {
@@ -172,34 +188,34 @@ class HomeController extends GetxController {
       return results;
     }
 
-    // Fast path: server-side prefix search on nameLower
+    // fast path
     try {
       final snap = await FirebaseFirestore.instance
           .collectionGroup('items')
           .orderBy('nameLower')
           .startAt([qLower])
           .endAt(['$qLower\uf8ff'])
-          .limit(limit * 3) // fetch extra to allow dedupe
+          .limit(limit * 3)
           .get();
 
-      final mapped = _mapAndDedupe(snap.docs);
+      final mapped = mapAndDedupe(snap.docs);
       if (mapped.isNotEmpty) {
         searchResults = mapped.take(limit).toList();
         update(['Search']);
         return;
       }
     } catch (e) {
-      Get.log('Search fast-path failed (likely missing index/field): $e');
+      Get.log('Search fast-path failed: $e');
     }
 
-    // Fallback: client-side filter over a larger pool
+    // fallback
     try {
       final snap = await FirebaseFirestore.instance
           .collectionGroup('items')
           .limit(poolSize)
           .get();
 
-      final pool = _mapAndDedupe(snap.docs);
+      final pool = mapAndDedupe(snap.docs);
       searchResults = pool
           .where((p) => p.name.toLowerCase().contains(qLower))
           .take(limit)
@@ -265,7 +281,6 @@ class HomeController extends GetxController {
       final parsed = int.tryParse(v);
       if (parsed != null) return parsed;
     }
-    // Fallback: derived from docId (sufficient for UI identity)
     return docId.hashCode;
   }
 
