@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,13 +8,25 @@ import '../routes/app_pages.dart';
 
 class ProductItem extends StatelessWidget {
   final ProductModel product;
-  const ProductItem({super.key, required this.product});
+  final List<String> imageUrls; // <-- new
+
+  const ProductItem({
+    super.key,
+    required this.product,
+    this.imageUrls = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
     return GestureDetector(
-      onTap: () => Get.toNamed(Routes.productDetails, arguments: product),
+      onTap: () => Get.toNamed(
+        Routes.productDetails,
+        arguments: {
+          'product': product,
+          'imageUrls': imageUrls,
+        },
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: theme.cardColor,
@@ -27,8 +38,13 @@ class ProductItem extends StatelessWidget {
               right: 12.w,
               bottom: 12.h,
               child: GestureDetector(
-                onTap: () =>
-                    Get.toNamed(Routes.productDetails, arguments: product),
+                onTap: () => Get.toNamed(
+                  Routes.productDetails,
+                  arguments: {
+                    'product': product,
+                    'imageUrls': imageUrls,
+                  },
+                ),
                 child: CircleAvatar(
                   radius: 18.r,
                   backgroundColor: theme.primaryColor,
@@ -41,7 +57,7 @@ class ProductItem extends StatelessWidget {
               left: 26.w,
               right: 25.w,
               child: Image.network(
-                product.image, // Using picPath as the URL for the product image
+                product.image,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(Icons.broken_image,

@@ -20,9 +20,17 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
+    final rawImgs = controller.imageUrls;
+// try to skip the disclaimer
+    final imgsAfterSkip = rawImgs.length > 1
+        ? rawImgs.sublist(1).where((e) => e.trim().isNotEmpty).toList()
+        : const <String>[];
 
+// final list we'll actually show
+    final imgs = imgsAfterSkip.isNotEmpty ? imgsAfterSkip : rawImgs;
     Widget buildProductImage(String path) {
-      final isNetwork = path.startsWith('http://') || path.startsWith('https://');
+      final isNetwork =
+          path.startsWith('http://') || path.startsWith('https://');
       if (isNetwork) {
         return Image.network(
           path,
@@ -41,6 +49,28 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
         errorBuilder: (_, __, ___) =>
             const Icon(Icons.image_not_supported, size: 64, color: Colors.grey),
       );
+    }
+
+    Widget buildImages() {
+      // we have multiple from Firestore
+      if (imgs.isNotEmpty) {
+        if (imgs.length == 1) {
+          return buildProductImage(imgs.first);
+        }
+        return SizedBox(
+          height: 225.h,
+          child: PageView.builder(
+            controller: PageController(viewportFraction: 0.8),
+            itemCount: imgs.length,
+            itemBuilder: (ctx, i) => Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.w),
+              child: buildProductImage(imgs[i]),
+            ),
+          ),
+        );
+      }
+      // fallback to single image on the product
+      return buildProductImage(controller.product.image);
     }
 
     return Scaffold(
@@ -88,7 +118,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     top: 80.h,
                     left: 0,
                     right: 0,
-                    child: buildProductImage(controller.product.image)
+                    child: buildImages()
                         .animate()
                         .fade()
                         .scale(duration: 800.ms, curve: Curves.fastOutSlowIn),
@@ -96,10 +126,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                 ],
               ),
             ),
-
             30.verticalSpace,
-
-            // Title + Counter row (no overflow)
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: Row(
@@ -119,7 +146,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                   ),
                   12.horizontalSpace,
                   SizedBox(
-                    width: 120.w, // bound counter width to avoid overflow
+                    width: 120.w,
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: ProductCountItem(product: controller.product)
@@ -130,10 +157,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                 ],
               ),
             ),
-
             8.verticalSpace,
-
-            // Price
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: Text(
@@ -147,10 +171,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     curve: Curves.easeInSine,
                   ),
             ),
-
             8.verticalSpace,
-
-            // Description
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: Text(
@@ -162,10 +183,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     curve: Curves.easeInSine,
                   ),
             ),
-
             20.verticalSpace,
-
-            // Info cards
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: GridView(
@@ -193,10 +211,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     ),
               ),
             ),
-
             30.verticalSpace,
-
-            // Add to cart
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: CustomButton(
@@ -212,7 +227,6 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
                     curve: Curves.easeInSine,
                   ),
             ),
-
             30.verticalSpace,
           ],
         ),

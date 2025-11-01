@@ -1,11 +1,9 @@
-// // ignore_for_file: deprecated_member_use
-
+// ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/products_controller.dart';
 import '../../../components/product_item.dart';
-
 
 class ProductsView extends GetView<ProductsController> {
   const ProductsView({super.key});
@@ -13,14 +11,13 @@ class ProductsView extends GetView<ProductsController> {
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
-    final categoryName =
-        Get.arguments as String; // Get the category name passed as an argument
+    final categoryName = Get.arguments as String;
 
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -29,7 +26,7 @@ class ProductsView extends GetView<ProductsController> {
                 onPressed: () => Get.back(),
               ),
               Text(
-                '$categoryName 🌽', // Display the selected category name in the title
+                '$categoryName 🌽',
                 style: theme.textTheme.bodyMedium,
               ),
               IconButton(
@@ -40,36 +37,34 @@ class ProductsView extends GetView<ProductsController> {
           ),
         ),
       ),
-      body: Obx(
-        () {
-          if (controller.products.isEmpty) {
-            return const Center(
-                child: Text(
-                    'No products available')); // Display message if no products are available
-          }
+      body: Obx(() {
+        if (controller.products.isEmpty) {
+          return const Center(child: Text('No products available'));
+        }
 
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, // Display two products per row
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                mainAxisExtent: 214, // Fixed height for each grid item
-              ),
-              itemCount: controller.products.length,
-              itemBuilder: (context, index) {
-                final product = controller
-                    .products[index]; // Get the product at the current index
-                return ProductItem(
-                  product:
-                      product, // Pass the product to the ProductItem widget
-                );
-              },
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              mainAxisExtent: 214,
             ),
-          );
-        },
-      ),
+            itemCount: controller.products.length,
+            itemBuilder: (context, index) {
+              final product = controller.products[index];
+              final imageUrls =
+                  controller.imageUrlsById[product.id] ?? const <String>[];
+
+              return ProductItem(
+                product: product,
+                imageUrls: imageUrls, // <-- pass full list to item
+              );
+            },
+          ),
+        );
+      }),
     );
   }
 }
