@@ -13,9 +13,9 @@ class CartItem extends GetView<CartController> {
   bool _isUrl(String s) {
     final v = s.toLowerCase();
     return v.startsWith('http://') ||
-           v.startsWith('https://') ||
-           v.startsWith('gs://') ||
-           v.contains('firebasestorage.googleapis.com');
+        v.startsWith('https://') ||
+        v.startsWith('gs://') ||
+        v.contains('firebasestorage.googleapis.com');
   }
 
   Widget _thumb(String path) {
@@ -27,7 +27,8 @@ class CartItem extends GetView<CartController> {
       return ClipRRect(
         borderRadius: border,
         child: FadeInImage.assetNetwork(
-          placeholder: 'assets/placeholder.jpg', // ensure declared in pubspec.yaml
+          placeholder:
+              'assets/placeholder.jpg', // ensure declared in pubspec.yaml
           image: path,
           width: size.width,
           height: size.height,
@@ -76,7 +77,7 @@ class CartItem extends GetView<CartController> {
                 ),
                 4.verticalSpace,
                 Text(
-                  '1kg, ${product.price.toStringAsFixed(2)}\$',
+                  '\₹${product.price.toStringAsFixed(2)}',
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: theme.primaryColor,
                   ),

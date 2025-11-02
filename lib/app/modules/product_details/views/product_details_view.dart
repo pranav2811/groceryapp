@@ -161,7 +161,7 @@ class ProductDetailsView extends GetView<ProductDetailsController> {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24.w),
               child: Text(
-                '1kg, ${controller.product.price.toStringAsFixed(2)}\$',
+                '\₹${controller.product.price.toStringAsFixed(2)}',
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.primaryColor,
                 ),

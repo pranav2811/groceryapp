@@ -230,6 +230,16 @@ class HomeController extends GetxController {
 
   // -------------------- Mapping helpers --------------------
 
+  double _parsePrice(dynamic raw) {
+    if (raw is num) return raw.toDouble();
+    if (raw is String) {
+      // remove currency symbols, commas, spaces, etc.
+      final cleaned = raw.replaceAll(RegExp(r'[^\d.]'), '');
+      return double.tryParse(cleaned) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   ProductModel? _mapDocToProduct(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
@@ -246,12 +256,9 @@ class HomeController extends GetxController {
     String image = '';
     final rawList = data['imageUrls'];
     if (rawList is List && rawList.isNotEmpty) {
-      // normalize to strings
       final urls = rawList.map((e) => (e ?? '').toString()).toList();
-      // try to use any after the first
       final rest = urls.length > 1 ? urls.sublist(1) : const <String>[];
       image = rest.firstWhere((u) => u.isNotEmpty, orElse: () => '');
-      // if nothing valid after skipping, fall back to original first
       if (image.isEmpty) {
         image = urls.firstWhere((u) => u.isNotEmpty, orElse: () => '');
       }
@@ -265,10 +272,14 @@ class HomeController extends GetxController {
     if (rawQty is num) quantity = rawQty.toInt();
     if (rawQty is String) quantity = int.tryParse(rawQty) ?? 0;
 
-    double price = 0.0;
-    final rawPrice = data['price'];
-    if (rawPrice is num) price = rawPrice.toDouble();
-    if (rawPrice is String) price = double.tryParse(rawPrice) ?? 0.0;
+    // support multiple possible price keys
+    final rawPrice = data['price'] ??
+        data['productPrice'] ??
+        data['sellingPrice'] ??
+        data['salePrice'] ??
+        data['mrp'];
+
+    final double price = _parsePrice(rawPrice);
 
     return ProductModel(
       id: id,

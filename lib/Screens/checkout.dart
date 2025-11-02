@@ -130,7 +130,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                    '\₹${(item.price * item.quantity).toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 16,
                       color: Colors.grey,
@@ -256,7 +256,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           ),
         ),
         child: Text(
-          'Pay Now - \$${totalAmount.toStringAsFixed(2)}',
+          'Pay Now - \₹${totalAmount.toStringAsFixed(2)}',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),

@@ -87,7 +87,7 @@ class ProductsOperationsController extends ChangeNotifier {
     if (_totalCost == 0) {
       for (int i = 0; i < _shoppingCart.length; i++) {
         _totalCost +=
-            (double.parse(_shoppingCart[i].price.replaceAll('\$', '')) *
+            (double.parse(_shoppingCart[i].price.replaceAll('\₹', '')) *
                 _shoppingCart[i].orderedQuantity);
       }
       notifyListeners();
@@ -95,7 +95,7 @@ class ProductsOperationsController extends ChangeNotifier {
       _totalCost = 0.0;
       for (int i = 0; i < _shoppingCart.length; i++) {
         _totalCost +=
-            (double.parse(_shoppingCart[i].price.replaceAll('\$', '')) *
+            (double.parse(_shoppingCart[i].price.replaceAll('\₹', '')) *
                 _shoppingCart[i].orderedQuantity);
       }
       notifyListeners();

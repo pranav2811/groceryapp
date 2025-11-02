@@ -86,7 +86,7 @@ class ProductItem extends StatelessWidget {
                       ),
                   5.verticalSpace,
                   Text(
-                    '${product.price}\$',
+                    '\₹${product.price}',
                     style:
                         theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
                   ).animate().fade().slideY(

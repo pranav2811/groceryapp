@@ -221,7 +221,7 @@ class _AdminOrderPageState extends State<AdminOrderPage> {
                           final it = (item as Map<String, dynamic>);
                           final itemName = it['name'] ?? 'Item';
                           final itemPrice = it['price'] ?? 0;
-                          return Text('- $itemName: \$$itemPrice');
+                          return Text('- $itemName: \₹$itemPrice');
                         }),
                         const SizedBox(height: 12),
                         const Text('Details:',
