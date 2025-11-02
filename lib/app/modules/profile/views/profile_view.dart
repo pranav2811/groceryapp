@@ -106,7 +106,7 @@ class ProfileView extends GetView<ProfileController> {
                 },
               ),
               _buildListTile(
-                'Favorite orders',
+                'Favorite orders (Coming Soon)',
                 Icons.favorite,
                 onTap: () {
                   // TODO: favorite orders screen
