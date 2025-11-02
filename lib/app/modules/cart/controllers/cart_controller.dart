@@ -62,9 +62,10 @@ class CartController extends GetxController {
   Future<void> addOrderToFirestore(
       String userId, Map<String, dynamic> address) async {
     try {
-      // Add the cart items to the order in Firestore
       await firestore.collection('orders').add({
-        'user_id': userId,
+        // use both keys for backward compatibility
+        'userId': userId, // ← used by rules and orders screen
+        'user_id': userId, // ← your existing data shape
         'address': address,
         'products': products
             .map((p) => {
@@ -75,13 +76,19 @@ class CartController extends GetxController {
                 })
             .toList(),
         'payment_status': 'pending',
-        'timestamp': FieldValue.serverTimestamp(),
+        'paymentMethod': 'cod',
+        'createdAt': FieldValue.serverTimestamp(), // ← for sorting
       });
+
       CustomSnackBar.showCustomSnackBar(
-          title: 'Success', message: 'Order placed successfully!');
+        title: 'Success',
+        message: 'Order placed successfully!',
+      );
     } catch (e) {
       CustomSnackBar.showCustomSnackBar(
-          title: 'Error', message: 'Failed to place order: $e');
+        title: 'Error',
+        message: 'Failed to place order: $e',
+      );
     }
   }
 

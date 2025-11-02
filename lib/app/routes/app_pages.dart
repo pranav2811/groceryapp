@@ -1,4 +1,6 @@
 import 'package:get/get.dart';
+import 'package:groceryapp/app/modules/orders/bindings/orders_binding.dart';
+import 'package:groceryapp/app/modules/orders/views/user_order_view.dart';
 import 'package:groceryapp/app/modules/photoorder/views/cameraorder_view.dart';
 
 import '../modules/base/bindings/base_binding.dart';
@@ -41,6 +43,11 @@ class AppPages {
       name: _Paths.welcome,
       page: () => const WelcomeView(),
       binding: WelcomeBinding(),
+    ),
+    GetPage(
+      name: '/user-orders',
+      page: () => const UserOrdersView(),
+      binding: UserOrdersBinding(),
     ),
     GetPage(
       name: _Paths.base,

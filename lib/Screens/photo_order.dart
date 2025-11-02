@@ -1,3 +1,4 @@
+// photo_order_page.dart  (your Stateful one)
 import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -116,21 +117,24 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
       return;
     }
 
-    // Confirm
     final proceed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Confirm Order'),
-        content: const Text('Do you want to place this order with the selected photo?'),
+        content: const Text(
+            'Do you want to place this order with the selected photo?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Confirm')),
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Confirm')),
         ],
       ),
     );
     if (proceed != true) return;
 
-    // Auth & address/payment selection
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -147,25 +151,29 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
     );
     if (result == null) return;
 
+    // bottom sheet returns whole object, store directly
     final address = Map<String, dynamic>.from(result['address'] as Map);
     final paymentMethod = (result['paymentMethod'] as String?) ?? 'cod';
 
     setState(() => _placing = true);
 
     try {
-      // Determine display name (denormalize)
+      // denormalize user name
       String userName = user.displayName ?? '';
       if (userName.isEmpty) {
         try {
-          final u = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+          final u = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
           final d = u.data() ?? {};
-          userName = (d['name'] ?? d['displayName'] ?? user.email ?? user.uid).toString();
+          userName = (d['name'] ?? d['displayName'] ?? user.email ?? user.uid)
+              .toString();
         } catch (_) {
           userName = user.email ?? user.uid;
         }
       }
 
-      // Upload image to Storage with metadata; only proceed if URL is obtained
       final file = _imageFile!;
       if (!await file.exists()) {
         throw 'Captured image file not found.';
@@ -178,7 +186,8 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
 
       final objectName =
           'photo_order_${user.uid}_${DateTime.now().millisecondsSinceEpoch}$ext';
-      final ref = FirebaseStorage.instance.ref().child('photo_orders/$objectName');
+      final ref =
+          FirebaseStorage.instance.ref().child('photo_orders/$objectName');
 
       final metadata = SettableMetadata(
         contentType: contentType,
@@ -188,34 +197,20 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
         },
       );
 
-      TaskSnapshot snap;
-      try {
-        snap = await ref.putFile(file, metadata);
-        debugPrint('Upload done: ${snap.state} path=${ref.fullPath}');
-      } catch (e) {
-        throw 'Upload failed: $e';
-      }
-
-      // Verify + get URL
-      try {
-        await ref.getMetadata(); // throws if missing/denied
-      } catch (e) {
-        throw 'Upload verify failed: $e';
-      }
-
+      final snap = await ref.putFile(file, metadata);
+      await snap.ref.getMetadata();
       final imageUrl = await ref.getDownloadURL();
-      if (imageUrl.isEmpty) {
-        throw 'Could not obtain image URL.';
-      }
 
-      // Write Firestore doc (with server timestamp)
+      // write in unified shape
       await FirebaseFirestore.instance.collection('photo_orders').add({
-        'userId': user.uid,
+        'userId': user.uid, // <- REQUIRED
         'userName': userName,
-        'timestamp': FieldValue.serverTimestamp(),
-        'address': address,
+        'createdAt': FieldValue.serverTimestamp(), // <- use createdAt
+        'address': {
+          'address': address,
+        },
         'imageUrl': imageUrl,
-        'paymentMethod': paymentMethod, // <- from the bottom sheet
+        'paymentMethod': paymentMethod,
         'status': 'pending',
         'type': 'photo_order',
       });
@@ -254,7 +249,8 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
   }
 
   Widget _buildCameraOverlay() {
-    final ready = _cameraController != null && _cameraController!.value.isInitialized;
+    final ready =
+        _cameraController != null && _cameraController!.value.isInitialized;
     return Stack(
       children: [
         if (ready)
@@ -309,7 +305,8 @@ class _PhotoOrderPageState extends State<PhotoOrderPage> {
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Text('Place Order'),
                 ),

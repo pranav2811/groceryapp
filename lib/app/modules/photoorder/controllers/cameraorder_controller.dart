@@ -45,14 +45,12 @@ class CameraViewController extends GetxController {
     }
   }
 
-  /// Capture a photo and store the file path in [capturedImagePath].
   Future<void> capturePhoto() async {
     if (!isCameraInitialized.value) {
       Get.snackbar('Camera', 'Camera is not ready yet.');
       return;
     }
     try {
-      // Ensure camera is not recording etc.
       if (!cameraController.value.isInitialized ||
           cameraController.value.isTakingPicture) {
         return;
@@ -105,7 +103,7 @@ class CameraViewController extends GetxController {
     try {
       isPlacingOrder.value = true;
 
-      // 1) Resolve display name
+      // resolve name
       String userName = user.displayName ?? '';
       if (userName.isEmpty) {
         final snap = await _firestore.collection('users').doc(user.uid).get();
@@ -113,12 +111,9 @@ class CameraViewController extends GetxController {
         userName = (d['name'] ?? d['displayName'] ?? user.email ?? user.uid)
             .toString();
       }
-      debugPrint('[placeOrder] user=${user.uid}, userName=$userName');
 
-      // 2) Verify file exists
       final file = File(capturedImagePath.value);
       if (!await file.exists()) {
-        debugPrint('[placeOrder] file missing at ${file.path}');
         Get.snackbar('File missing', 'Captured image file not found on disk.');
         return;
       }
@@ -127,70 +122,34 @@ class CameraViewController extends GetxController {
           ? 'image/png'
           : (ext == '.webp' ? 'image/webp' : 'image/jpeg');
 
-      // 3) Build Storage ref
       final objectName =
           'photo_order_${user.uid}_${DateTime.now().millisecondsSinceEpoch}$ext';
       final ref = _storage.ref().child('photo_orders/$objectName');
-      debugPrint('[placeOrder] uploading to ${ref.fullPath}');
 
-      // 4) Upload with metadata
       final metadata = SettableMetadata(
         contentType: contentType,
         customMetadata: {
           'userId': user.uid,
-          'uploadedAt': DateTime.now().toIso8601String()
+          'uploadedAt': DateTime.now().toIso8601String(),
         },
       );
 
-      TaskSnapshot snap;
-      try {
-        snap = await ref.putFile(file, metadata);
-        debugPrint('[placeOrder] upload state=${snap.state}');
-      } on FirebaseException catch (e) {
-        debugPrint(
-            '[placeOrder] FirebaseException on putFile: code=${e.code} message=${e.message}');
-        Get.snackbar('Upload failed', '${e.code}: ${e.message}');
-        return;
-      } catch (e) {
-        debugPrint('[placeOrder] putFile error: $e');
-        Get.snackbar('Upload failed', e.toString());
-        return;
-      }
+      final snap = await ref.putFile(file, metadata);
+      await snap.ref.getMetadata(); // verify
+      final imageUrl = await ref.getDownloadURL();
 
-      // 5) Verify object and get URL
-      try {
-        final m = await ref.getMetadata();
-        debugPrint('[placeOrder] stored object OK, ct=${m.contentType}');
-      } on FirebaseException catch (e) {
-        debugPrint('[placeOrder] getMetadata failed: ${e.code} ${e.message}');
-        Get.snackbar('Upload verify failed', '${e.code}: ${e.message}');
-        return;
-      }
-
-      String imageUrl;
-      try {
-        imageUrl = await ref.getDownloadURL();
-        debugPrint('[placeOrder] downloadURL=$imageUrl');
-      } on FirebaseException catch (e) {
-        debugPrint(
-            '[placeOrder] getDownloadURL failed: ${e.code} ${e.message}');
-        Get.snackbar('Upload failed', 'Could not get image URL: ${e.code}');
-        return;
-      }
-
-      // 6) Write Firestore doc ONLY after we have a URL
+      // WRITE in the format apps expects
       await _firestore.collection('photo_orders').add({
-        'userId': user.uid,
+        'userId': user.uid, // <- REQUIRED
         'userName': userName,
-        'timestamp': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(), // <- use createdAt
         'address': address,
         'imageUrl': imageUrl,
+        'paymentMethod': 'cod',
         'status': 'pending',
         'type': 'photo_order',
       });
-      debugPrint('[placeOrder] photo_orders doc created');
 
-      // 7) Done
       capturedImagePath.value = '';
       await showDialog<void>(
         context: context,
